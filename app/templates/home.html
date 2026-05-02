@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Featured 3D Printed Products</h2>
+<div class="grid">
+  {% for p in products %}
+  <article class="card">
+    <img src="{{ p.image_url }}" alt="{{ p.name }}">
+    <h3>{{ p.name }}</h3>
+    <p>{{ p.description }}</p>
+    <small>{{ p.filament.material }} / {{ p.filament.color }}</small>
+    <div class="row">
+      <strong>${{ '%.2f'|format(p.price) }}</strong>
+      <form method="post" action="{{ url_for('add_to_cart', product_id=p.id) }}">
+        <button>Add to cart</button>
+      </form>
+    </div>
+  </article>
+  {% else %}
+  <p>No products yet. Visit Admin to add products.</p>
+  {% endfor %}
+</div>
+{% endblock %}
