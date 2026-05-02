@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -7,6 +9,8 @@ import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
 import db from './db.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
@@ -62,6 +66,10 @@ app.post('/api/products', auth, (req, res) => {
   res.json({ id: info.lastInsertRowid });
 });
 
+
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
 app.post('/api/checkout', async (req, res) => {
   const { items } = req.body;
   if (!stripe.apiKey) return res.status(400).json({ error: 'Stripe key missing' });
@@ -79,3 +87,7 @@ app.post('/api/checkout', async (req, res) => {
 });
 
 app.listen(process.env.PORT || 4000, () => console.log('API running'));
+
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
+});

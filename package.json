@@ -8,7 +8,8 @@
     "dev:server": "nodemon server/server.js",
     "dev:client": "vite",
     "build": "vite build",
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "prod": "npm run build && npm run start"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
