@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>C2 3D Print Shop</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <header>
+    <h1><a href="{{ url_for('home') }}">C2 3D Print Shop</a></h1>
+    <nav>
+      <a href="{{ url_for('home') }}">Products</a>
+      <a href="{{ url_for('cart_view') }}">Cart</a>
+      <a href="{{ url_for('admin_dashboard') }}">Admin</a>
+    </nav>
+  </header>
+  <section class="promo">Need fully custom hype chains? Use <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer">designer.camwow.tv</a> to design and order.</section>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <ul class="flash-list">{% for category,message in messages %}<li class="{{ category }}">{{ message }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% endwith %}
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>
