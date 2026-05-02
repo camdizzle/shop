@@ -16,6 +16,9 @@ A modern online shop built with **Node.js (Express)** and **React (Vite)**.
 npm install
 cp .env.example .env
 npm run dev
+# If needed, run server and client separately:
+# npm run dev:server
+# npm run dev:client
 ```
 - React app: http://localhost:5173
 - API: http://localhost:4000
