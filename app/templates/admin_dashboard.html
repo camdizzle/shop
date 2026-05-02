@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Admin Dashboard</h2>
+<p><a href="{{ url_for('admin_filament_new') }}">Add Filament</a> | <a href="{{ url_for('admin_product_new') }}">Add Product</a> | <a href="{{ url_for('admin_logout') }}">Logout</a></p>
+<h3>Filament Library</h3>
+<ul>{% for f in filaments %}<li>{{ f.material }} {{ f.color }} ({{ f.sku }}) - {{ f.stock_grams }}g</li>{% endfor %}</ul>
+<h3>Products</h3>
+<ul>{% for p in products %}<li>{{ p.name }} - ${{ '%.2f'|format(p.price) }}</li>{% endfor %}</ul>
+{% endblock %}
