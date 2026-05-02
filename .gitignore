@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+shop-data.json
+*.db
+__pycache__/
+instance/
