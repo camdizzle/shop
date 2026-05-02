@@ -1,50 +1,28 @@
-# C2 3D Print Shop
+# C2 3D Print Shop (Node.js + React)
 
-Production-ready starter eCommerce web app for a 3D printing company.
+A modern online shop built with **Node.js (Express)** and **React (Vite)**.
 
-## Features implemented
+## Implemented requirements
+- Product showcase for added products.
+- Central filament/color system used in product creation.
+- Admin login and admin product/filament creation.
+- Promotion for https://designer.camwow.tv in the header.
+- Modern UI with React components.
+- Stripe Checkout flow.
+- Security baseline with Helmet, JWT httpOnly cookie auth, CORS, JSON body limits.
 
-- Product showcase grid with image, price, description, and assigned filament profile.
-- Central filament/color management library (material + color + SKU + stock grams) linked to product creation.
-- Password-protected admin area for adding filament records and products quickly.
-- Session cart with add/remove and Stripe Checkout integration.
-- Built-in ad banner for your sister product: https://designer.camwow.tv.
-- Security hardening basics:
-  - CSRF protection (Flask-WTF forms)
-  - Rate limiting on login + checkout endpoints
-  - Security headers (CSP, X-Frame-Options, Referrer-Policy, etc.)
-  - Server-side validation for admin/product forms
-
-## Quick start
-
+## Run
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+npm install
 cp .env.example .env
-python run.py
+npm run dev
 ```
+- React app: http://localhost:5173
+- API: http://localhost:4000
 
-Visit:
-- Store: http://127.0.0.1:5000/
-- Admin login: http://127.0.0.1:5000/admin/login
-
-## Environment variables
-
-Create a `.env` file:
-
-```env
-SECRET_KEY=replace-with-random-value
-ADMIN_PASSWORD=replace-with-strong-password
-DATABASE_URL=sqlite:///shop.db
-STRIPE_SECRET_KEY=sk_test_...
-```
-
-## Recommended next upgrades
-
-1. Add user accounts + order history + email receipts.
-2. Add inventory subtraction and low-stock alerts on checkout.
-3. Add webhook verification for Stripe checkout completion.
-4. Add object storage for uploaded product images instead of URL-only input.
-5. Add role-based admin permissions + audit logs.
-6. Add SAST/DAST and dependency vulnerability scanning in CI.
+## Suggested improvements
+- Move admin into protected routes with role-based UI.
+- Add Stripe webhook verification and order persistence.
+- Add Zod validation + rate limiting.
+- Add image upload storage (S3/Cloudinary).
+- Add Playwright/Cypress E2E tests.
