@@ -7,11 +7,12 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
-import db from './db.js';
+import { createFilament, createProduct, getFilaments, getProducts } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+app.set('trust proxy', 1);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
 app.use(helmet());
@@ -34,7 +35,7 @@ app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
   if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
     const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '8h' });
-    res.cookie('admin_token', token, { httpOnly: true, sameSite: 'lax', secure: false });
+    res.cookie('admin_token', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
     return res.json({ ok: true });
   }
   res.status(401).json({ error: 'Invalid credentials' });
@@ -46,24 +47,23 @@ app.post('/api/admin/logout', (_req, res) => {
 });
 
 app.get('/api/filaments', (_req, res) => {
-  res.json(db.prepare('SELECT * FROM filaments ORDER BY id DESC').all());
+  res.json(getFilaments());
 });
 
 app.post('/api/filaments', auth, (req, res) => {
   const { material, color, sku, stock_grams } = req.body;
-  const info = db.prepare('INSERT INTO filaments (material,color,sku,stock_grams) VALUES (?,?,?,?)').run(material, color, sku, stock_grams);
-  res.json({ id: info.lastInsertRowid });
+  const row = createFilament({ material, color, sku, stock_grams });
+  res.json({ id: row.id });
 });
 
 app.get('/api/products', (_req, res) => {
-  const rows = db.prepare(`SELECT p.*, f.material, f.color FROM products p JOIN filaments f ON p.filament_id=f.id ORDER BY p.id DESC`).all();
-  res.json(rows);
+  res.json(getProducts());
 });
 
 app.post('/api/products', auth, (req, res) => {
   const { name, description, image_url, price_cents, filament_id } = req.body;
-  const info = db.prepare('INSERT INTO products (name,description,image_url,price_cents,filament_id) VALUES (?,?,?,?,?)').run(name, description, image_url, price_cents, filament_id);
-  res.json({ id: info.lastInsertRowid });
+  const row = createProduct({ name, description, image_url, price_cents, filament_id });
+  res.json({ id: row.id });
 });
 
 
@@ -86,7 +86,12 @@ app.post('/api/checkout', async (req, res) => {
   res.json({ url: session.url });
 });
 
-app.listen(process.env.PORT || 4000, () => console.log('API running'));
+const PORT = Number(process.env.PORT || 4000);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+app.listen(PORT, HOST, () => console.log(`API running on ${HOST}:${PORT}`));
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
