@@ -135,9 +135,21 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_id: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const handleLoginSubmit = (e) => {
     e.preventDefault();
@@ -163,23 +175,34 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    if (!imageFile) { addToast('Please select a product image', 'warning'); return; }
+    setUploading(true);
     try {
+      const form = new FormData();
+      form.append('image', imageFile);
+      const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+      if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+      const { url: image_url } = await uploadRes.json();
+
       const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...productForm,
+          ...productForm, image_url,
           price_cents: Number(productForm.price_cents),
           filament_id: Number(productForm.filament_id),
         }),
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+        setProductForm({ name: '', description: '', price_cents: '', filament_id: '' });
+        setImageFile(null);
+        setImagePreview(null);
         setShowProductForm(false);
         onRefresh();
       } else addToast('Failed to add product', 'error');
     } catch { addToast('Failed to add product', 'error'); }
+    setUploading(false);
   };
 
   const handleDeleteProduct = async (id) => {
@@ -303,14 +326,15 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               </div>
             </div>
             <div className="form-group">
-              <label>Image URL</label>
-              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required placeholder="https://example.com/image.jpg" />
+              <label>Product Image</label>
+              <input type="file" accept="image/*" onChange={handleImageSelect} required={!imageFile} />
+              {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
             </div>
             <div className="form-group">
               <label>Description</label>
               <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required placeholder="Describe the product..." rows={3} />
             </div>
-            <button type="submit" className="btn-primary">Publish Product</button>
+            <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Uploading...' : 'Publish Product'}</button>
           </form>
         )}
         {products.length === 0 ? (

@@ -491,6 +491,38 @@ body {
 
 .form-group textarea { resize: vertical; min-height: 80px; }
 
+.form-group input[type="file"] {
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.form-group input[type="file"]::file-selector-button {
+  background: linear-gradient(135deg, var(--accent), #6d28d9);
+  color: white;
+  border: none;
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-right: 0.75rem;
+  transition: all var(--transition);
+}
+
+.form-group input[type="file"]::file-selector-button:hover {
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.3);
+}
+
+.image-preview {
+  margin-top: 0.75rem;
+  max-width: 200px;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
