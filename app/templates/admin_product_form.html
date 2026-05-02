@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Add Product</h2>
+<form method="post">{{ form.hidden_tag() }}
+<p>{{ form.name.label }} {{ form.name() }}</p>
+<p>{{ form.description.label }} {{ form.description() }}</p>
+<p>{{ form.image_url.label }} {{ form.image_url() }}</p>
+<p>{{ form.price.label }} {{ form.price() }}</p>
+<p>{{ form.category.label }} {{ form.category() }}</p>
+<p>{{ form.filament_id.label }} {{ form.filament_id() }}</p>
+{{ form.submit() }}
+</form>
+{% endblock %}
