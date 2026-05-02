@@ -30,6 +30,15 @@ export function createFilament(input) {
   return row;
 }
 
+export function deleteFilament(id) {
+  const data = load();
+  const idx = data.filaments.findIndex((f) => f.id === id);
+  if (idx === -1) return false;
+  data.filaments.splice(idx, 1);
+  save(data);
+  return true;
+}
+
 export function getProducts() {
   const data = load();
   return data.products
@@ -46,4 +55,13 @@ export function createProduct(input) {
   data.products.push(row);
   save(data);
   return row;
+}
+
+export function deleteProduct(id) {
+  const data = load();
+  const idx = data.products.findIndex((p) => p.id === id);
+  if (idx === -1) return false;
+  data.products.splice(idx, 1);
+  save(data);
+  return true;
 }
