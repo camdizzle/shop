@@ -1,0 +1,14 @@
+:root { color-scheme: dark; }
+body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+header { display:flex; justify-content:space-between; padding:1rem 2rem; background:#020617; position:sticky; top:0; }
+a { color:#38bdf8; text-decoration:none; }
+main { padding: 1.5rem 2rem; }
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap:1rem; }
+.card { background:#1e293b; border-radius:12px; padding:1rem; }
+.card img { width:100%; height:180px; object-fit:cover; border-radius:8px; }
+.row { display:flex; justify-content:space-between; align-items:center; }
+button { background:#0284c7; color:white; border:0; border-radius:8px; padding:0.5rem 0.75rem; cursor:pointer; }
+.promo { background:#082f49; padding:0.75rem 2rem; }
+.flash-list{ list-style:none; padding:0 2rem; }
+.flash-list li{ margin:0.5rem 0; padding:0.5rem; border-radius:6px; }
+.success{ background:#14532d; } .warning{ background:#78350f; } .danger{ background:#7f1d1d; }
