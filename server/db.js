@@ -71,7 +71,16 @@ export function getProducts() {
 
 export function createProduct(input) {
   const data = load();
-  const { name, description, image_url, slug, variants = [] } = input;
+  const { name, description, image_url, slug, variants = [], parent_product_id } = input;
+  if (parent_product_id) {
+    const existing = data.products.find((p) => p.id === Number(parent_product_id));
+    if (!existing) throw new Error('Parent product not found');
+    for (const v of variants) {
+      data.variants.push({ id: data.counters.variant++, product_id: existing.id, ...v });
+    }
+    save(data);
+    return existing;
+  }
   const product = { id: data.counters.product++, name, description, image_url, slug: slug || name.toLowerCase().replace(/\s+/g, '-') };
   data.products.push(product);
   for (const v of variants) {

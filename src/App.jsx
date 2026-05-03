@@ -147,7 +147,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
   const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
@@ -176,7 +176,8 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    if (!productForm.image_url) {
+    const isVariantOfParent = Boolean(productForm.parent_product_id);
+    if (!isVariantOfParent && !productForm.image_url) {
       addToast('Provide image URL or upload a file', 'error');
       return;
     }
@@ -190,6 +191,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         slug: productForm.slug,
         description: productForm.description,
         image_url: productForm.image_url,
+        parent_product_id: productForm.parent_product_id ? Number(productForm.parent_product_id) : undefined,
         price_cents: Number(productForm.price_cents),
         filament_ids: productForm.filament_ids.map(Number),
         themes: productForm.themes.split(',').map(x => x.trim()).filter(Boolean),
@@ -203,7 +205,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '' });
+        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
         setProductImageFileName('');
         setShowProductForm(false);
         onRefresh();
@@ -316,8 +318,19 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
           <form className="admin-form" onSubmit={handleAddProduct}>
             <div className="form-row">
               <div className="form-group">
+                <label>Add Variants To Existing Parent</label>
+                <select value={productForm.parent_product_id} onChange={e => setProductForm({ ...productForm, parent_product_id: e.target.value })}>
+                  <option value="">Create New Parent Product</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.slug || 'no-slug'})</option>)}
+                </select>
+              </div>
+              <div className="form-group">
                 <label>Name</label>
-                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required placeholder="Product name" />
+                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required={!productForm.parent_product_id} placeholder="Product name" />
+              </div>
+              <div className="form-group">
+                <label>Slug / Group Key</label>
+                <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
               </div>
               <div className="form-group">
                 <label>Slug / Group Key</label>
@@ -341,7 +354,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
             </div>
             <div className="form-group">
               <label>Image URL</label>
-              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} placeholder="https://example.com/image.jpg" />
+              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required={!productForm.parent_product_id} placeholder="https://example.com/image.jpg" />
             </div>
             <div className="form-group">
               <label>Upload Image</label>
@@ -365,7 +378,21 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
             </div>
             <div className="form-group">
               <label>Description</label>
-              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required placeholder="Describe the product..." rows={3} />
+              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required={!productForm.parent_product_id} placeholder="Describe the product..." rows={3} />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Themes (comma-separated)</label>
+                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder="NFL, Camo, Retro" />
+              </div>
+              <div className="form-group">
+                <label>Sizes (comma-separated)</label>
+                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
+              </div>
+              <div className="form-group">
+                <label>Styles (comma-separated)</label>
+                <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
+              </div>
             </div>
             <div className="form-row">
               <div className="form-group">
