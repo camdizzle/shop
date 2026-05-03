@@ -1,0 +1,6 @@
+{
+  "watch": ["server"],
+  "ext": "js,mjs,json",
+  "ignore": ["dist/**", "node_modules/**", "app/**", "src/**", ".git/**"],
+  "delay": "250"
+}
