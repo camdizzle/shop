@@ -147,7 +147,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [] });
+  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '' });
   const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
@@ -185,21 +185,25 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       return;
     }
     try {
-      const payloads = productForm.filament_ids.map((id) => ({
+      const payload = {
         name: productForm.name,
+        slug: productForm.slug,
         description: productForm.description,
         image_url: productForm.image_url,
         price_cents: Number(productForm.price_cents),
-        filament_id: Number(id),
-      }));
-      const results = await Promise.all(payloads.map((payload) => fetch('/api/products', {
+        filament_ids: productForm.filament_ids.map(Number),
+        themes: productForm.themes.split(',').map(x => x.trim()).filter(Boolean),
+        sizes: productForm.sizes.split(',').map(x => x.trim()).filter(Boolean),
+        styles: productForm.styles.split(',').map(x => x.trim()).filter(Boolean),
+      };
+      const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      })));
-      if (results.every((res) => res.ok)) {
+      });
+      if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [] });
+        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '' });
         setProductImageFileName('');
         setShowProductForm(false);
         onRefresh();
@@ -316,6 +320,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required placeholder="Product name" />
               </div>
               <div className="form-group">
+                <label>Slug / Group Key</label>
+                <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
+              </div>
+              <div className="form-group">
                 <label>Price (cents)</label>
                 <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
               </div>
@@ -359,6 +367,20 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               <label>Description</label>
               <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required placeholder="Describe the product..." rows={3} />
             </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Themes (comma-separated)</label>
+                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder="NFL, Camo, Retro" />
+              </div>
+              <div className="form-group">
+                <label>Sizes (comma-separated)</label>
+                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
+              </div>
+              <div className="form-group">
+                <label>Styles (comma-separated)</label>
+                <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
+              </div>
+            </div>
             <button type="submit" className="btn-primary">Publish Product</button>
           </form>
         )}
@@ -367,14 +389,13 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Price</th><th>Material</th><th>Color</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Variants</th><th>Base Price</th><th></th></tr></thead>
               <tbody>
                 {products.map(p => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
+                    <td>{p.variants?.length || 0}</td>
                     <td>${(p.price_cents / 100).toFixed(2)}</td>
-                    <td>{p.material}</td>
-                    <td>{p.color}</td>
                     <td><button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button></td>
                   </tr>
                 ))}
