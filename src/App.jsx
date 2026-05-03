@@ -333,6 +333,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
               </div>
               <div className="form-group">
+                <label>Slug / Group Key</label>
+                <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
+              </div>
+              <div className="form-group">
                 <label>Price (cents)</label>
                 <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
               </div>
@@ -375,6 +379,20 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
             <div className="form-group">
               <label>Description</label>
               <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required={!productForm.parent_product_id} placeholder="Describe the product..." rows={3} />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Themes (comma-separated)</label>
+                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder="NFL, Camo, Retro" />
+              </div>
+              <div className="form-group">
+                <label>Sizes (comma-separated)</label>
+                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
+              </div>
+              <div className="form-group">
+                <label>Styles (comma-separated)</label>
+                <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
+              </div>
             </div>
             <div className="form-row">
               <div className="form-group">
