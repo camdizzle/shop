@@ -36,18 +36,22 @@ function Nav({ page, setPage, cartCount }) {
 }
 
 function ShopPage({ products, onAddToCart }) {
+  const chainMakerTile = {
+    id: 'chain-maker-tile',
+    name: 'Design Custom Hype Chains',
+    description: 'Build your own custom chain with your preferred style and details.',
+    image_url: 'https://designer.camwow.tv/og-image.png',
+    material: 'Custom',
+    color: 'Any',
+    isExternal: true,
+  };
+  const displayProducts = [chainMakerTile, ...products];
+
   return (
     <>
-      <section className="hero">
-        <h1>Premium 3D Printed Products</h1>
-        <p>Custom-crafted with precision. Each piece made to order with the finest filaments.</p>
-        <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-outline">
-          Design Custom Hype Chains &rarr;
-        </a>
-      </section>
       <section className="container">
         <h2 className="section-title">Featured Products</h2>
-        {products.length === 0 ? (
+        {displayProducts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">&#9883;</div>
             <p>No products yet.</p>
@@ -55,7 +59,7 @@ function ShopPage({ products, onAddToCart }) {
           </div>
         ) : (
           <div className="product-grid">
-            {products.map(p => (
+            {displayProducts.map(p => (
               <article key={p.id} className="product-card">
                 <div className="product-image-wrap">
                   <img
@@ -69,8 +73,16 @@ function ShopPage({ products, onAddToCart }) {
                   <h3>{p.name}</h3>
                   <p className="product-desc">{p.description}</p>
                   <div className="product-footer">
-                    <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
-                    <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                    {p.isExternal ? (
+                      <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-primary">
+                        Open Designer
+                      </a>
+                    ) : (
+                      <>
+                        <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
+                        <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                      </>
+                    )}
                   </div>
                 </div>
               </article>
@@ -135,7 +147,8 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [] });
+  const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
 
@@ -163,19 +176,31 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    if (!productForm.image_url) {
+      addToast('Provide image URL or upload a file', 'error');
+      return;
+    }
+    if (productForm.filament_ids.length === 0) {
+      addToast('Select at least one filament', 'error');
+      return;
+    }
     try {
-      const res = await fetch('/api/products', {
+      const payloads = productForm.filament_ids.map((id) => ({
+        name: productForm.name,
+        description: productForm.description,
+        image_url: productForm.image_url,
+        price_cents: Number(productForm.price_cents),
+        filament_id: Number(id),
+      }));
+      const results = await Promise.all(payloads.map((payload) => fetch('/api/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...productForm,
-          price_cents: Number(productForm.price_cents),
-          filament_id: Number(productForm.filament_id),
-        }),
-      });
-      if (res.ok) {
+        body: JSON.stringify(payload),
+      })));
+      if (results.every((res) => res.ok)) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [] });
+        setProductImageFileName('');
         setShowProductForm(false);
         onRefresh();
       } else addToast('Failed to add product', 'error');
@@ -296,15 +321,39 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               </div>
               <div className="form-group">
                 <label>Filament</label>
-                <select value={productForm.filament_id} onChange={e => setProductForm({ ...productForm, filament_id: e.target.value })} required>
-                  <option value="">Select filament...</option>
+                <select
+                  multiple
+                  value={productForm.filament_ids}
+                  onChange={e => setProductForm({ ...productForm, filament_ids: Array.from(e.target.selectedOptions, option => option.value) })}
+                  required
+                >
                   {filaments.map(f => <option key={f.id} value={f.id}>{f.material} - {f.color}</option>)}
                 </select>
               </div>
             </div>
             <div className="form-group">
               <label>Image URL</label>
-              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required placeholder="https://example.com/image.jpg" />
+              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} placeholder="https://example.com/image.jpg" />
+            </div>
+            <div className="form-group">
+              <label>Upload Image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === 'string') {
+                      setProductForm(prev => ({ ...prev, image_url: reader.result }));
+                      setProductImageFileName(file.name);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              {productImageFileName && <small className="text-muted">Selected: {productImageFileName}</small>}
             </div>
             <div className="form-group">
               <label>Description</label>

@@ -7,8 +7,10 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileAllowed, FileField
+from werkzeug.utils import secure_filename
 from wtforms import DecimalField, IntegerField, PasswordField, SelectField, StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length, NumberRange, URL
+from wtforms.validators import DataRequired, Length, NumberRange, Optional, URL
 
 db = SQLAlchemy()
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour", "40/minute"])
@@ -44,11 +46,21 @@ class FilamentForm(FlaskForm):
 class ProductForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired(), Length(max=140)])
     description = TextAreaField("Description", validators=[DataRequired(), Length(min=20)])
-    image_url = StringField("Image URL", validators=[DataRequired(), URL(), Length(max=500)])
+    image_url = StringField("Image URL", validators=[Optional(), URL(), Length(max=500)])
+    image_file = FileField("Image Upload", validators=[FileAllowed(["jpg", "jpeg", "png", "gif", "webp"], "Images only!")])
     price = DecimalField("Price", validators=[DataRequired(), NumberRange(min=0.01)], places=2)
     category = StringField("Category", validators=[DataRequired(), Length(max=80)])
     filament_id = SelectField("Filament", coerce=int, validators=[DataRequired()])
     submit = SubmitField("Publish Product")
+
+    def validate(self, extra_validators=None):
+        valid = super().validate(extra_validators=extra_validators)
+        if not valid:
+            return False
+        if not self.image_url.data and not self.image_file.data:
+            self.image_url.errors.append("Provide either an Image URL or upload an image file.")
+            return False
+        return True
 
 
 class LoginForm(FlaskForm):
@@ -70,6 +82,8 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///shop.db")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["ADMIN_PASSWORD"] = os.getenv("ADMIN_PASSWORD", "change-this-password")
+    app.config["UPLOAD_FOLDER"] = os.path.join(app.static_folder, "uploads")
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
@@ -187,7 +201,14 @@ def create_app():
             flash("Add filament entries before products.", "warning")
             return redirect(url_for("admin_filament_new"))
         if form.validate_on_submit():
+            if form.image_file.data:
+                filename = secure_filename(form.image_file.data.filename)
+                if filename:
+                    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+                    form.image_file.data.save(filepath)
+                    form.image_url.data = url_for("static", filename=f"uploads/{filename}")
             payload = {k: v for k, v in form.data.items() if k not in ["csrf_token", "submit"]}
+            payload.pop("image_file", None)
             db.session.add(Product(**payload))
             db.session.commit()
             return redirect(url_for("admin_dashboard"))
