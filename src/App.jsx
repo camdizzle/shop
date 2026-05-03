@@ -136,6 +136,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
   const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+  const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
 
@@ -163,6 +164,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    if (!productForm.image_url) {
+      addToast('Provide image URL or upload a file', 'error');
+      return;
+    }
     try {
       const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
@@ -176,6 +181,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       if (res.ok) {
         addToast('Product published');
         setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+        setProductImageFileName('');
         setShowProductForm(false);
         onRefresh();
       } else addToast('Failed to add product', 'error');
@@ -304,7 +310,27 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
             </div>
             <div className="form-group">
               <label>Image URL</label>
-              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required placeholder="https://example.com/image.jpg" />
+              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} placeholder="https://example.com/image.jpg" />
+            </div>
+            <div className="form-group">
+              <label>Upload Image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === 'string') {
+                      setProductForm(prev => ({ ...prev, image_url: reader.result }));
+                      setProductImageFileName(file.name);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              {productImageFileName && <small className="text-muted">Selected: {productImageFileName}</small>}
             </div>
             <div className="form-group">
               <label>Description</label>
