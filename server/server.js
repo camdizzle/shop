@@ -75,8 +75,19 @@ app.get('/api/products', (_req, res) => {
 });
 
 app.post('/api/products', auth, (req, res) => {
-  const { name, description, image_url, price_cents, filament_id } = req.body;
-  const row = createProduct({ name, description, image_url, price_cents, filament_id });
+  const { parent_product_id, name, description, image_url, slug, price_cents, filament_ids = [], themes = ['Standard'], sizes = ['Standard'], styles = ['Standard'] } = req.body;
+  const variants = [];
+  for (const filament_id of filament_ids) {
+    for (const theme of themes) {
+      for (const size of sizes) {
+        for (const style of styles) {
+          variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents) });
+        }
+      }
+    }
+  }
+  if (variants.length === 0) return res.status(400).json({ error: 'At least one variant required' });
+  const row = createProduct({ parent_product_id, name, description, image_url, slug, variants });
   res.json({ id: row.id });
 });
 
