@@ -36,18 +36,22 @@ function Nav({ page, setPage, cartCount }) {
 }
 
 function ShopPage({ products, onAddToCart }) {
+  const chainMakerTile = {
+    id: 'chain-maker-tile',
+    name: 'Design Custom Hype Chains',
+    description: 'Build your own custom chain with your preferred style and details.',
+    image_url: 'https://designer.camwow.tv/og-image.png',
+    material: 'Custom',
+    color: 'Any',
+    isExternal: true,
+  };
+  const displayProducts = [chainMakerTile, ...products];
+
   return (
     <>
-      <section className="hero">
-        <h1>Premium 3D Printed Products</h1>
-        <p>Custom-crafted with precision. Each piece made to order with the finest filaments.</p>
-        <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-outline">
-          Design Custom Hype Chains &rarr;
-        </a>
-      </section>
       <section className="container">
         <h2 className="section-title">Featured Products</h2>
-        {products.length === 0 ? (
+        {displayProducts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">&#9883;</div>
             <p>No products yet.</p>
@@ -55,7 +59,7 @@ function ShopPage({ products, onAddToCart }) {
           </div>
         ) : (
           <div className="product-grid">
-            {products.map(p => (
+            {displayProducts.map(p => (
               <article key={p.id} className="product-card">
                 <div className="product-image-wrap">
                   <img
@@ -69,8 +73,16 @@ function ShopPage({ products, onAddToCart }) {
                   <h3>{p.name}</h3>
                   <p className="product-desc">{p.description}</p>
                   <div className="product-footer">
-                    <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
-                    <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                    {p.isExternal ? (
+                      <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-primary">
+                        Open Designer
+                      </a>
+                    ) : (
+                      <>
+                        <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
+                        <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                      </>
+                    )}
                   </div>
                 </div>
               </article>
@@ -134,8 +146,9 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
+  const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
 
@@ -154,7 +167,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       });
       if (res.ok) {
         addToast('Filament added');
-        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '' });
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
         setShowFilamentForm(false);
         onRefresh();
       } else addToast('Failed to add filament', 'error');
@@ -163,22 +176,43 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    const isVariantOfParent = Boolean(productForm.parent_product_id);
+    if (!isVariantOfParent && !productForm.image_url) {
+      addToast('Provide image URL or upload a file', 'error');
+      return;
+    }
+    if (productForm.filament_ids.length === 0) {
+      addToast('Select at least one filament', 'error');
+      return;
+    }
     try {
+      const payload = {
+        name: productForm.name,
+        slug: productForm.slug,
+        description: productForm.description,
+        image_url: productForm.image_url,
+        parent_product_id: productForm.parent_product_id ? Number(productForm.parent_product_id) : undefined,
+        price_cents: Number(productForm.price_cents),
+        filament_ids: productForm.filament_ids.map(Number),
+        themes: productForm.themes.split(',').map(x => x.trim()).filter(Boolean),
+        sizes: productForm.sizes.split(',').map(x => x.trim()).filter(Boolean),
+        styles: productForm.styles.split(',').map(x => x.trim()).filter(Boolean),
+      };
       const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...productForm,
-          price_cents: Number(productForm.price_cents),
-          filament_id: Number(productForm.filament_id),
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_id: '' });
+        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
+        setProductImageFileName('');
         setShowProductForm(false);
         onRefresh();
-      } else addToast('Failed to add product', 'error');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast(data.error || 'Failed to add product', 'error');
+      }
     } catch { addToast('Failed to add product', 'error'); }
   };
 
@@ -247,6 +281,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={filamentForm.sku} onChange={e => setFilamentForm({ ...filamentForm, sku: e.target.value })} required placeholder="e.g. PLA-BLK-001" />
               </div>
               <div className="form-group">
+                <label>Vendor</label>
+                <input value={filamentForm.vendor} onChange={e => setFilamentForm({ ...filamentForm, vendor: e.target.value })} required placeholder="e.g. Polymaker" />
+              </div>
+              <div className="form-group">
                 <label>Stock (grams)</label>
                 <input type="number" value={filamentForm.stock_grams} onChange={e => setFilamentForm({ ...filamentForm, stock_grams: e.target.value })} required placeholder="1000" />
               </div>
@@ -259,13 +297,14 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Material</th><th>Color</th><th>SKU</th><th>Stock</th><th></th></tr></thead>
+              <thead><tr><th>Material</th><th>Color</th><th>SKU</th><th>Vendor</th><th>Stock</th><th></th></tr></thead>
               <tbody>
                 {filaments.map(f => (
                   <tr key={f.id}>
                     <td>{f.material}</td>
                     <td>{f.color}</td>
                     <td><code>{f.sku}</code></td>
+                    <td>{f.vendor || '—'}</td>
                     <td>{f.stock_grams}g</td>
                     <td><button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button></td>
                   </tr>
@@ -287,28 +326,90 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
           <form className="admin-form" onSubmit={handleAddProduct}>
             <div className="form-row">
               <div className="form-group">
-                <label>Name</label>
-                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required placeholder="Product name" />
+                <label>Product Group</label>
+                <select value={productForm.parent_product_id} onChange={e => setProductForm({ ...productForm, parent_product_id: e.target.value, slug: e.target.value ? '' : productForm.slug })}>
+                  <option value="">Create New Group</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
+              <div className="form-group">
+                <label>Name</label>
+                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required={!productForm.parent_product_id} placeholder="Product name" />
+              </div>
+              {!productForm.parent_product_id && (
+                <div className="form-group">
+                  <label>Group Key (Slug)</label>
+                  <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
+                </div>
+              )}
               <div className="form-group">
                 <label>Price (cents)</label>
                 <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
               </div>
               <div className="form-group">
-                <label>Filament</label>
-                <select value={productForm.filament_id} onChange={e => setProductForm({ ...productForm, filament_id: e.target.value })} required>
-                  <option value="">Select filament...</option>
-                  {filaments.map(f => <option key={f.id} value={f.id}>{f.material} - {f.color}</option>)}
-                </select>
+                <label>Filaments (select one or more)</label>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', padding: '0.5rem' }}>
+                  {filaments.map(f => (
+                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={productForm.filament_ids.includes(String(f.id))}
+                        onChange={(e) => {
+                          const id = String(f.id);
+                          const next = e.target.checked
+                            ? [...productForm.filament_ids, id]
+                            : productForm.filament_ids.filter((x) => x !== id);
+                          setProductForm({ ...productForm, filament_ids: next });
+                        }}
+                      />
+                      <span>{f.material} - {f.color} ({f.vendor || 'Unknown vendor'})</span>
+                    </label>
+                  ))}
+                </div>
+                {productForm.filament_ids.length === 0 && <small className="text-muted">Select at least one filament.</small>}
               </div>
             </div>
             <div className="form-group">
               <label>Image URL</label>
-              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required placeholder="https://example.com/image.jpg" />
+              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required={!productForm.parent_product_id} placeholder="https://example.com/image.jpg" />
+            </div>
+            <div className="form-group">
+              <label>Upload Image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === 'string') {
+                      setProductForm(prev => ({ ...prev, image_url: reader.result }));
+                      setProductImageFileName(file.name);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              {productImageFileName && <small className="text-muted">Selected: {productImageFileName}</small>}
             </div>
             <div className="form-group">
               <label>Description</label>
-              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required placeholder="Describe the product..." rows={3} />
+              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required={!productForm.parent_product_id} placeholder="Describe the product..." rows={3} />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Themes (comma-separated)</label>
+                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder="NFL, Camo, Retro" />
+              </div>
+              <div className="form-group">
+                <label>Sizes (comma-separated)</label>
+                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
+              </div>
+              <div className="form-group">
+                <label>Styles (comma-separated)</label>
+                <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
+              </div>
             </div>
             <button type="submit" className="btn-primary">Publish Product</button>
           </form>
@@ -318,14 +419,13 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Price</th><th>Material</th><th>Color</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Variants</th><th>Base Price</th><th></th></tr></thead>
               <tbody>
                 {products.map(p => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
+                    <td>{p.variants?.length || 0}</td>
                     <td>${(p.price_cents / 100).toFixed(2)}</td>
-                    <td>{p.material}</td>
-                    <td>{p.color}</td>
                     <td><button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button></td>
                   </tr>
                 ))}
