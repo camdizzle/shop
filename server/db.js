@@ -58,6 +58,15 @@ export function deleteFilament(id) {
   return true;
 }
 
+export function updateFilament(id, input) {
+  const data = load();
+  const idx = data.filaments.findIndex((f) => f.id === id);
+  if (idx === -1) return null;
+  data.filaments[idx] = { ...data.filaments[idx], ...input };
+  save(data);
+  return data.filaments[idx];
+}
+
 export function getProducts() {
   const data = load();
   return data.products.map((p) => {

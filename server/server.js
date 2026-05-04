@@ -7,7 +7,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
-import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +70,13 @@ app.delete('/api/filaments/:id', auth, (req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+app.put('/api/filaments/:id', auth, (req, res) => {
+  const { material, color, sku, stock_grams, vendor } = req.body;
+  const row = updateFilament(Number(req.params.id), { material, color, sku, stock_grams, vendor });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
 app.get('/api/products', (_req, res) => {
   res.json(getProducts());
 });
@@ -90,8 +97,15 @@ app.post('/api/products', auth, (req, res) => {
     }
   }
   if (variants.length === 0) return res.status(400).json({ error: 'At least one variant required' });
-  const row = createProduct({ parent_product_id, name, description, image_url, slug, variants });
-  res.json({ id: row.id });
+  if (!parent_product_id && (!name || !description || !image_url)) {
+    return res.status(400).json({ error: 'Name, description, and image are required for new product groups.' });
+  }
+  try {
+    const row = createProduct({ parent_product_id, name, description, image_url, slug, variants });
+    res.json({ id: row.id });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Unable to create product.' });
+  }
 });
 
 app.delete('/api/products/:id', auth, (req, res) => {

@@ -151,6 +151,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+  const [editingFilamentId, setEditingFilamentId] = useState(null);
 
   const handleLoginSubmit = (e) => {
     e.preventDefault();
@@ -230,6 +231,24 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
     } catch { addToast('Failed to delete', 'error'); }
   };
 
+  const handleEditFilament = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/filaments/${editingFilamentId}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...filamentForm, stock_grams: Number(filamentForm.stock_grams) }),
+      });
+      if (res.ok) {
+        addToast('Filament updated');
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+        setEditingFilamentId(null);
+        setShowFilamentForm(false);
+        onRefresh();
+      } else addToast('Failed to update filament', 'error');
+    } catch { addToast('Failed to update filament', 'error'); }
+  };
+
   if (!isAdmin) {
     return (
       <section className="container">
@@ -261,12 +280,18 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       <div className="admin-section">
         <div className="admin-section-header">
           <h3>Filament Library</h3>
-          <button className="btn-primary" onClick={() => setShowFilamentForm(!showFilamentForm)}>
+          <button className="btn-primary" onClick={() => {
+            if (showFilamentForm) {
+              setShowFilamentForm(false);
+              setEditingFilamentId(null);
+              setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+            } else setShowFilamentForm(true);
+          }}>
             {showFilamentForm ? 'Cancel' : '+ Add Filament'}
           </button>
         </div>
         {showFilamentForm && (
-          <form className="admin-form" onSubmit={handleAddFilament}>
+          <form className="admin-form" onSubmit={editingFilamentId ? handleEditFilament : handleAddFilament}>
             <div className="form-row">
               <div className="form-group">
                 <label>Material</label>
@@ -289,7 +314,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input type="number" value={filamentForm.stock_grams} onChange={e => setFilamentForm({ ...filamentForm, stock_grams: e.target.value })} required placeholder="1000" />
               </div>
             </div>
-            <button type="submit" className="btn-primary">Save Filament</button>
+            <button type="submit" className="btn-primary">{editingFilamentId ? 'Update Filament' : 'Save Filament'}</button>
           </form>
         )}
         {filaments.length === 0 ? (
@@ -306,7 +331,14 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                     <td><code>{f.sku}</code></td>
                     <td>{f.vendor || '—'}</td>
                     <td>{f.stock_grams}g</td>
-                    <td><button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button></td>
+                    <td style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn-sm" onClick={() => {
+                        setEditingFilamentId(f.id);
+                        setFilamentForm({ material: f.material, color: f.color, sku: f.sku, stock_grams: String(f.stock_grams), vendor: f.vendor || '' });
+                        setShowFilamentForm(true);
+                      }}>Edit</button>
+                      <button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -348,6 +380,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               </div>
               <div className="form-group">
                 <label>Filaments (select one or more)</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: filaments.map((f) => String(f.id)) })}>Select All</button>
+                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: [] })}>Clear</button>
+                </div>
                 <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', padding: '0.5rem' }}>
                   {filaments.map(f => (
                     <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
