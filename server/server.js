@@ -59,8 +59,8 @@ app.get('/api/filaments', (_req, res) => {
 });
 
 app.post('/api/filaments', auth, (req, res) => {
-  const { material, color, sku, stock_grams } = req.body;
-  const row = createFilament({ material, color, sku, stock_grams });
+  const { material, color, sku, stock_grams, vendor } = req.body;
+  const row = createFilament({ material, color, sku, stock_grams, vendor });
   res.json({ id: row.id });
 });
 
@@ -76,11 +76,14 @@ app.get('/api/products', (_req, res) => {
 
 app.post('/api/products', auth, (req, res) => {
   const { parent_product_id, name, description, image_url, slug, price_cents, filament_ids = [], themes = ['Standard'], sizes = ['Standard'], styles = ['Standard'] } = req.body;
+  const normalizedThemes = Array.isArray(themes) && themes.length ? themes : ['Standard'];
+  const normalizedSizes = Array.isArray(sizes) && sizes.length ? sizes : ['Standard'];
+  const normalizedStyles = Array.isArray(styles) && styles.length ? styles : ['Standard'];
   const variants = [];
   for (const filament_id of filament_ids) {
-    for (const theme of themes) {
-      for (const size of sizes) {
-        for (const style of styles) {
+    for (const theme of normalizedThemes) {
+      for (const size of normalizedSizes) {
+        for (const style of normalizedStyles) {
           variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents) });
         }
       }

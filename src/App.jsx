@@ -146,7 +146,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
+  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
   const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
   const [productImageFileName, setProductImageFileName] = useState('');
   const [showFilamentForm, setShowFilamentForm] = useState(false);
@@ -167,7 +167,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       });
       if (res.ok) {
         addToast('Filament added');
-        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '' });
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
         setShowFilamentForm(false);
         onRefresh();
       } else addToast('Failed to add filament', 'error');
@@ -209,7 +209,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         setProductImageFileName('');
         setShowProductForm(false);
         onRefresh();
-      } else addToast('Failed to add product', 'error');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast(data.error || 'Failed to add product', 'error');
+      }
     } catch { addToast('Failed to add product', 'error'); }
   };
 
@@ -278,6 +281,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={filamentForm.sku} onChange={e => setFilamentForm({ ...filamentForm, sku: e.target.value })} required placeholder="e.g. PLA-BLK-001" />
               </div>
               <div className="form-group">
+                <label>Vendor</label>
+                <input value={filamentForm.vendor} onChange={e => setFilamentForm({ ...filamentForm, vendor: e.target.value })} required placeholder="e.g. Polymaker" />
+              </div>
+              <div className="form-group">
                 <label>Stock (grams)</label>
                 <input type="number" value={filamentForm.stock_grams} onChange={e => setFilamentForm({ ...filamentForm, stock_grams: e.target.value })} required placeholder="1000" />
               </div>
@@ -290,13 +297,14 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Material</th><th>Color</th><th>SKU</th><th>Stock</th><th></th></tr></thead>
+              <thead><tr><th>Material</th><th>Color</th><th>SKU</th><th>Vendor</th><th>Stock</th><th></th></tr></thead>
               <tbody>
                 {filaments.map(f => (
                   <tr key={f.id}>
                     <td>{f.material}</td>
                     <td>{f.color}</td>
                     <td><code>{f.sku}</code></td>
+                    <td>{f.vendor || '—'}</td>
                     <td>{f.stock_grams}g</td>
                     <td><button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button></td>
                   </tr>
@@ -339,15 +347,26 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
               </div>
               <div className="form-group">
-                <label>Filament</label>
-                <select
-                  multiple
-                  value={productForm.filament_ids}
-                  onChange={e => setProductForm({ ...productForm, filament_ids: Array.from(e.target.selectedOptions, option => option.value) })}
-                  required
-                >
-                  {filaments.map(f => <option key={f.id} value={f.id}>{f.material} - {f.color}</option>)}
-                </select>
+                <label>Filaments (select one or more)</label>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', padding: '0.5rem' }}>
+                  {filaments.map(f => (
+                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={productForm.filament_ids.includes(String(f.id))}
+                        onChange={(e) => {
+                          const id = String(f.id);
+                          const next = e.target.checked
+                            ? [...productForm.filament_ids, id]
+                            : productForm.filament_ids.filter((x) => x !== id);
+                          setProductForm({ ...productForm, filament_ids: next });
+                        }}
+                      />
+                      <span>{f.material} - {f.color} ({f.vendor || 'Unknown vendor'})</span>
+                    </label>
+                  ))}
+                </div>
+                {productForm.filament_ids.length === 0 && <small className="text-muted">Select at least one filament.</small>}
               </div>
             </div>
             <div className="form-group">
