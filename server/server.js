@@ -7,7 +7,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
-import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +17,7 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.CLIENT_ORIGIN, credentials: true }));
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
@@ -59,8 +59,8 @@ app.get('/api/filaments', (_req, res) => {
 });
 
 app.post('/api/filaments', auth, (req, res) => {
-  const { material, color, sku, stock_grams } = req.body;
-  const row = createFilament({ material, color, sku, stock_grams });
+  const { material, color, sku, stock_grams, vendor } = req.body;
+  const row = createFilament({ material, color, sku, stock_grams, vendor });
   res.json({ id: row.id });
 });
 
@@ -70,14 +70,42 @@ app.delete('/api/filaments/:id', auth, (req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+app.put('/api/filaments/:id', auth, (req, res) => {
+  const { material, color, sku, stock_grams, vendor } = req.body;
+  const row = updateFilament(Number(req.params.id), { material, color, sku, stock_grams, vendor });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
 app.get('/api/products', (_req, res) => {
   res.json(getProducts());
 });
 
 app.post('/api/products', auth, (req, res) => {
-  const { name, description, image_url, price_cents, filament_id } = req.body;
-  const row = createProduct({ name, description, image_url, price_cents, filament_id });
-  res.json({ id: row.id });
+  const { parent_product_id, name, description, image_url, slug, price_cents, filament_ids = [], themes = ['Standard'], sizes = ['Standard'], styles = ['Standard'] } = req.body;
+  const normalizedThemes = Array.isArray(themes) && themes.length ? themes : ['Standard'];
+  const normalizedSizes = Array.isArray(sizes) && sizes.length ? sizes : ['Standard'];
+  const normalizedStyles = Array.isArray(styles) && styles.length ? styles : ['Standard'];
+  const variants = [];
+  for (const filament_id of filament_ids) {
+    for (const theme of normalizedThemes) {
+      for (const size of normalizedSizes) {
+        for (const style of normalizedStyles) {
+          variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents) });
+        }
+      }
+    }
+  }
+  if (variants.length === 0) return res.status(400).json({ error: 'At least one variant required' });
+  if (!parent_product_id && (!name || !description || !image_url)) {
+    return res.status(400).json({ error: 'Name, description, and image are required for new product groups.' });
+  }
+  try {
+    const row = createProduct({ parent_product_id, name, description, image_url, slug, variants });
+    res.json({ id: row.id });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Unable to create product.' });
+  }
 });
 
 app.delete('/api/products/:id', auth, (req, res) => {
