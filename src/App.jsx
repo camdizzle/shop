@@ -36,6 +36,7 @@ function Nav({ page, setPage, cartCount }) {
 }
 
 function ShopPage({ products, onAddToCart }) {
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const chainMakerTile = {
     id: 'chain-maker-tile',
     name: 'Design Custom Hype Chains',
@@ -71,7 +72,10 @@ function ShopPage({ products, onAddToCart }) {
                 <div className="product-info">
                   <span className="product-tag">{p.material} / {p.color}</span>
                   <h3>{p.name}</h3>
-                  <p className="product-desc">{p.description}</p>
+                  <p className="product-desc">{p.description?.length > 110 ? `${p.description.slice(0, 110)}...` : p.description}</p>
+                  {!p.isExternal && p.variants?.length > 0 && (
+                    <small className="text-muted">{p.variants.length} variants available</small>
+                  )}
                   <div className="product-footer">
                     {p.isExternal ? (
                       <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-primary">
@@ -80,7 +84,10 @@ function ShopPage({ products, onAddToCart }) {
                     ) : (
                       <>
                         <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
-                        <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="btn-sm" onClick={() => setSelectedProduct(p)}>View</button>
+                          <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -90,6 +97,37 @@ function ShopPage({ products, onAddToCart }) {
           </div>
         )}
       </section>
+      {selectedProduct && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            style={{ background: '#fff', width: 'min(680px, 92vw)', borderRadius: '12px', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{selectedProduct.name}</h3>
+              <button className="btn-danger-sm" onClick={() => setSelectedProduct(null)}>Close</button>
+            </div>
+            <img src={selectedProduct.image_url} alt={selectedProduct.name} style={{ width: '100%', borderRadius: '10px', marginTop: '.75rem' }} />
+            <p style={{ marginTop: '.75rem' }}>{selectedProduct.description}</p>
+            <p><strong>Base price:</strong> ${(selectedProduct.price_cents / 100).toFixed(2)}</p>
+            {selectedProduct.variants?.length > 0 && (
+              <>
+                <h4>Variants</h4>
+                <div style={{ display: 'grid', gap: '0.4rem' }}>
+                  {selectedProduct.variants.map((v) => (
+                    <div key={v.id} style={{ border: '1px solid #eee', borderRadius: '8px', padding: '0.5rem' }}>
+                      {v.theme} • {v.size} • {v.style} • {v.material}/{v.color}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
