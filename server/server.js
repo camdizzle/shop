@@ -17,7 +17,7 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.CLIENT_ORIGIN, credentials: true }));
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';

@@ -417,6 +417,11 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 onChange={e => {
                   const file = e.target.files?.[0];
                   if (!file) return;
+                  if (file.size > 4 * 1024 * 1024) {
+                    addToast('Image too large. Please use an image under 4MB.', 'error');
+                    e.target.value = '';
+                    return;
+                  }
                   const reader = new FileReader();
                   reader.onload = () => {
                     if (typeof reader.result === 'string') {
