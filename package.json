@@ -7,7 +7,7 @@
     "dev": "node scripts-dev.mjs",
     "dev:server": "nodemon server/server.js",
     "dev:client": "vite",
-    "build": "vite build",
+    "build": "node node_modules/vite/bin/vite.js build",
     "start": "node server/server.js",
     "prod": "npm run build && npm run start"
   },
@@ -19,6 +19,7 @@
     "express": "^4.21.2",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "stripe": "^17.5.0"

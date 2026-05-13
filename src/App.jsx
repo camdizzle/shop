@@ -184,12 +184,23 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
-  const [productImageFileName, setProductImageFileName] = useState('');
+  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_id: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const handleLoginSubmit = (e) => {
     e.preventDefault();
@@ -215,37 +226,29 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    const isVariantOfParent = Boolean(productForm.parent_product_id);
-    if (!isVariantOfParent && !productForm.image_url) {
-      addToast('Provide image URL or upload a file', 'error');
-      return;
-    }
-    if (productForm.filament_ids.length === 0) {
-      addToast('Select at least one filament', 'error');
-      return;
-    }
+    if (!imageFile) { addToast('Please select a product image', 'warning'); return; }
+    setUploading(true);
     try {
-      const payload = {
-        name: productForm.name,
-        slug: productForm.slug,
-        description: productForm.description,
-        image_url: productForm.image_url,
-        parent_product_id: productForm.parent_product_id ? Number(productForm.parent_product_id) : undefined,
-        price_cents: Number(productForm.price_cents),
-        filament_ids: productForm.filament_ids.map(Number),
-        themes: productForm.themes.split(',').map(x => x.trim()).filter(Boolean),
-        sizes: productForm.sizes.split(',').map(x => x.trim()).filter(Boolean),
-        styles: productForm.styles.split(',').map(x => x.trim()).filter(Boolean),
-      };
+      const form = new FormData();
+      form.append('image', imageFile);
+      const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+      if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+      const { url: image_url } = await uploadRes.json();
+
       const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...productForm, image_url,
+          price_cents: Number(productForm.price_cents),
+          filament_id: Number(productForm.filament_id),
+        }),
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', image_url: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', slug: '', parent_product_id: '' });
-        setProductImageFileName('');
+        setProductForm({ name: '', description: '', price_cents: '', filament_id: '' });
+        setImageFile(null);
+        setImagePreview(null);
         setShowProductForm(false);
         onRefresh();
       } else {
@@ -253,6 +256,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         addToast(data.error || 'Failed to add product', 'error');
       }
     } catch { addToast('Failed to add product', 'error'); }
+    setUploading(false);
   };
 
   const handleDeleteProduct = async (id) => {
@@ -444,33 +448,9 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               </div>
             </div>
             <div className="form-group">
-              <label>Image URL</label>
-              <input type="url" value={productForm.image_url} onChange={e => setProductForm({ ...productForm, image_url: e.target.value })} required={!productForm.parent_product_id} placeholder="https://example.com/image.jpg" />
-            </div>
-            <div className="form-group">
-              <label>Upload Image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 4 * 1024 * 1024) {
-                    addToast('Image too large. Please use an image under 4MB.', 'error');
-                    e.target.value = '';
-                    return;
-                  }
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    if (typeof reader.result === 'string') {
-                      setProductForm(prev => ({ ...prev, image_url: reader.result }));
-                      setProductImageFileName(file.name);
-                    }
-                  };
-                  reader.readAsDataURL(file);
-                }}
-              />
-              {productImageFileName && <small className="text-muted">Selected: {productImageFileName}</small>}
+              <label>Product Image</label>
+              <input type="file" accept="image/*" onChange={handleImageSelect} required={!imageFile} />
+              {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
             </div>
             <div className="form-group">
               <label>Description</label>
@@ -490,7 +470,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
               </div>
             </div>
-            <button type="submit" className="btn-primary">Publish Product</button>
+            <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Uploading...' : 'Publish Product'}</button>
           </form>
         )}
         {products.length === 0 ? (

@@ -7,7 +7,10 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import Stripe from 'stripe';
-import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament } from './db.js';
+import multer from 'multer';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +22,26 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.CLIENT_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '15mb' }));
 app.use(cookieParser());
+
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir));
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${crypto.randomUUID()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  },
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
 
@@ -32,6 +55,11 @@ const auth = (req, res, next) => {
     res.status(401).json({ error: 'Unauthorized' });
   }
 };
+
+app.post('/api/upload', auth, upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No valid image file provided' });
+  res.json({ url: `/uploads/${req.file.filename}` });
+});
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
