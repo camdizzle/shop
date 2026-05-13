@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -147,10 +147,13 @@ app.post('/api/checkout', async (req, res) => {
   if (!items || items.length === 0) return res.status(400).json({ error: 'Cart is empty' });
   if (!stripe) return res.status(400).json({ error: 'Stripe is not configured. Set STRIPE_SECRET_KEY in .env' });
   try {
-    const line_items = items.map((i) => ({
-      price_data: { currency: 'usd', product_data: { name: i.name }, unit_amount: i.price_cents },
-      quantity: i.quantity,
-    }));
+    const line_items = items.map((i) => {
+      const desc = [i.variant, i.notes].filter(Boolean).join(' — ');
+      return {
+        price_data: { currency: 'usd', product_data: { name: i.name, ...(desc ? { description: desc } : {}) }, unit_amount: i.price_cents },
+        quantity: i.quantity,
+      };
+    });
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items,

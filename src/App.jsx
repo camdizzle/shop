@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 
 const PAGES = { SHOP: 'shop', CART: 'cart', ADMIN: 'admin' };
 
@@ -35,8 +35,122 @@ function Nav({ page, setPage, cartCount }) {
   );
 }
 
+function ProductModal({ product, onClose, onAddToCart }) {
+  const variants = product.variants || [];
+
+  const themes = useMemo(() => [...new Set(variants.map(v => v.theme))], [variants]);
+  const sizes = useMemo(() => [...new Set(variants.map(v => v.size))], [variants]);
+  const styles = useMemo(() => [...new Set(variants.map(v => v.style))], [variants]);
+  const materials = useMemo(() => [...new Set(variants.map(v => `${v.material} / ${v.color}`))], [variants]);
+
+  const [selectedTheme, setSelectedTheme] = useState(themes[0] || '');
+  const [selectedSize, setSelectedSize] = useState(sizes[0] || '');
+  const [selectedStyle, setSelectedStyle] = useState(styles[0] || '');
+  const [selectedMaterial, setSelectedMaterial] = useState(materials[0] || '');
+  const [notes, setNotes] = useState('');
+
+  const selectedVariant = useMemo(() => {
+    const matParts = selectedMaterial.split(' / ');
+    return variants.find(v =>
+      v.theme === selectedTheme &&
+      v.size === selectedSize &&
+      v.style === selectedStyle &&
+      v.material === matParts[0] &&
+      v.color === matParts[1]
+    ) || variants[0];
+  }, [variants, selectedTheme, selectedSize, selectedStyle, selectedMaterial]);
+
+  const price = selectedVariant?.price_cents || product.price_cents || 0;
+
+  const handleAdd = () => {
+    const variantLabel = [
+      selectedTheme !== 'Standard' && selectedTheme,
+      selectedSize !== 'Standard' && selectedSize,
+      selectedStyle !== 'Standard' && selectedStyle,
+      selectedMaterial,
+    ].filter(Boolean).join(', ');
+    onAddToCart({
+      id: product.id,
+      variantId: selectedVariant?.id,
+      name: product.name,
+      price_cents: price,
+      image_url: product.image_url,
+      variant: variantLabel,
+      notes: notes.trim(),
+    });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>{product.name}</h3>
+          <button className="btn-danger-sm" onClick={onClose}>Close</button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-image">
+            <img src={product.image_url} alt={product.name} />
+          </div>
+          <div className="modal-info">
+            <p className="modal-desc">{product.description}</p>
+            <div className="modal-price">${(price / 100).toFixed(2)}</div>
+
+            {themes.length > 1 && (
+              <div className="form-group">
+                <label>Theme</label>
+                <select value={selectedTheme} onChange={e => setSelectedTheme(e.target.value)}>
+                  {themes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            )}
+            {sizes.length > 1 && (
+              <div className="form-group">
+                <label>Size</label>
+                <select value={selectedSize} onChange={e => setSelectedSize(e.target.value)}>
+                  {sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+            {styles.length > 1 && (
+              <div className="form-group">
+                <label>Style</label>
+                <select value={selectedStyle} onChange={e => setSelectedStyle(e.target.value)}>
+                  {styles.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            )}
+            {materials.length > 1 && (
+              <div className="form-group">
+                <label>Material / Color</label>
+                <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
+                  {materials.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Order Notes</label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+                placeholder="Team name, theme, or custom color request..."
+              />
+              <small className="text-muted">Provide your team, theme, or custom color request not listed above.</small>
+            </div>
+
+            <button className="btn-primary btn-full" onClick={handleAdd}>Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ShopPage({ products, onAddToCart }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
+
   const chainMakerTile = {
     id: 'chain-maker-tile',
     name: 'Design Custom Hype Chains',
@@ -50,6 +164,10 @@ function ShopPage({ products, onAddToCart }) {
 
   return (
     <>
+      <section className="hero">
+        <h1>C2 3D Print Shop</h1>
+        <p>Premium 3D printed products crafted with precision and care.</p>
+      </section>
       <section className="container">
         <h2 className="section-title">Featured Products</h2>
         {displayProducts.length === 0 ? (
@@ -61,7 +179,7 @@ function ShopPage({ products, onAddToCart }) {
         ) : (
           <div className="product-grid">
             {displayProducts.map(p => (
-              <article key={p.id} className="product-card">
+              <article key={p.id} className="product-card" onClick={() => !p.isExternal && setSelectedProduct(p)} style={{ cursor: p.isExternal ? 'default' : 'pointer' }}>
                 <div className="product-image-wrap">
                   <img
                     src={p.image_url}
@@ -74,7 +192,7 @@ function ShopPage({ products, onAddToCart }) {
                   <h3>{p.name}</h3>
                   <p className="product-desc">{p.description?.length > 110 ? `${p.description.slice(0, 110)}...` : p.description}</p>
                   {!p.isExternal && p.variants?.length > 0 && (
-                    <small className="text-muted">{p.variants.length} variants available</small>
+                    <small className="text-muted">{p.variants.length} variant{p.variants.length !== 1 ? 's' : ''} available</small>
                   )}
                   <div className="product-footer">
                     {p.isExternal ? (
@@ -84,10 +202,7 @@ function ShopPage({ products, onAddToCart }) {
                     ) : (
                       <>
                         <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="btn-sm" onClick={() => setSelectedProduct(p)}>View</button>
-                          <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
-                        </div>
+                        <button className="btn-primary" onClick={e => { e.stopPropagation(); setSelectedProduct(p); }}>View</button>
                       </>
                     )}
                   </div>
@@ -98,35 +213,11 @@ function ShopPage({ products, onAddToCart }) {
         )}
       </section>
       {selectedProduct && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}
-          onClick={() => setSelectedProduct(null)}
-        >
-          <div
-            style={{ background: '#fff', width: 'min(680px, 92vw)', borderRadius: '12px', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>{selectedProduct.name}</h3>
-              <button className="btn-danger-sm" onClick={() => setSelectedProduct(null)}>Close</button>
-            </div>
-            <img src={selectedProduct.image_url} alt={selectedProduct.name} style={{ width: '100%', borderRadius: '10px', marginTop: '.75rem' }} />
-            <p style={{ marginTop: '.75rem' }}>{selectedProduct.description}</p>
-            <p><strong>Base price:</strong> ${(selectedProduct.price_cents / 100).toFixed(2)}</p>
-            {selectedProduct.variants?.length > 0 && (
-              <>
-                <h4>Variants</h4>
-                <div style={{ display: 'grid', gap: '0.4rem' }}>
-                  {selectedProduct.variants.map((v) => (
-                    <div key={v.id} style={{ border: '1px solid #eee', borderRadius: '8px', padding: '0.5rem' }}>
-                      {v.theme} • {v.size} • {v.style} • {v.material}/{v.color}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <ProductModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={onAddToCart}
+        />
       )}
     </>
   );
@@ -148,23 +239,25 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
         <>
           <div className="cart-items">
             {cart.map(item => (
-              <div key={item.id} className="cart-item">
+              <div key={item.cartId} className="cart-item">
                 <div className="cart-item-image">
                   <img src={item.image_url} alt={item.name} onError={e => { e.target.style.display = 'none'; }} />
                 </div>
                 <div className="cart-item-details">
                   <h3>{item.name}</h3>
+                  {item.variant && <span className="cart-item-variant">{item.variant}</span>}
+                  {item.notes && <span className="cart-item-notes">{item.notes}</span>}
                   <span className="text-muted">${(item.price_cents / 100).toFixed(2)} each</span>
                 </div>
                 <div className="cart-item-qty">
-                  <button className="btn-sm" onClick={() => onUpdateQty(item.id, -1)}>&#8722;</button>
+                  <button className="btn-sm" onClick={() => onUpdateQty(item.cartId, -1)}>&#8722;</button>
                   <span>{item.qty}</span>
-                  <button className="btn-sm" onClick={() => onUpdateQty(item.id, 1)}>+</button>
+                  <button className="btn-sm" onClick={() => onUpdateQty(item.cartId, 1)}>+</button>
                 </div>
                 <div className="cart-item-total">
                   ${((item.price_cents * item.qty) / 100).toFixed(2)}
                 </div>
-                <button className="btn-danger-sm" onClick={() => onRemove(item.id)}>Remove</button>
+                <button className="btn-danger-sm" onClick={() => onRemove(item.cartId)}>Remove</button>
               </div>
             ))}
           </div>
@@ -184,8 +277,8 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_id: '' });
+  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', parent_product_id: '', slug: '' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -226,27 +319,40 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    if (!imageFile) { addToast('Please select a product image', 'warning'); return; }
+    if (!imageFile && !productForm.parent_product_id) { addToast('Please select a product image', 'warning'); return; }
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append('image', imageFile);
-      const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
-      if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
-      const { url: image_url } = await uploadRes.json();
+      let image_url = '';
+      if (imageFile) {
+        const form = new FormData();
+        form.append('image', imageFile);
+        const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+        if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+        const uploadData = await uploadRes.json();
+        image_url = uploadData.url;
+      }
+
+      const themes = productForm.themes ? productForm.themes.split(',').map(s => s.trim()).filter(Boolean) : ['Standard'];
+      const sizes = productForm.sizes ? productForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : ['Standard'];
+      const styles = productForm.styles ? productForm.styles.split(',').map(s => s.trim()).filter(Boolean) : ['Standard'];
 
       const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...productForm, image_url,
+          name: productForm.name,
+          description: productForm.description,
+          image_url,
+          slug: productForm.slug,
           price_cents: Number(productForm.price_cents),
-          filament_id: Number(productForm.filament_id),
+          filament_ids: productForm.filament_ids,
+          themes, sizes, styles,
+          parent_product_id: productForm.parent_product_id || undefined,
         }),
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', price_cents: '', filament_id: '' });
+        setProductForm({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', parent_product_id: '', slug: '' });
         setImageFile(null);
         setImagePreview(null);
         setShowProductForm(false);
@@ -423,20 +529,20 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               <div className="form-group">
                 <label>Filaments (select one or more)</label>
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: filaments.map((f) => String(f.id)) })}>Select All</button>
+                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: filaments.map(f => String(f.id)) })}>Select All</button>
                   <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: [] })}>Clear</button>
                 </div>
-                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', padding: '0.5rem' }}>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem' }}>
                   {filaments.map(f => (
-                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', color: 'var(--text)' }}>
                       <input
                         type="checkbox"
                         checked={productForm.filament_ids.includes(String(f.id))}
-                        onChange={(e) => {
+                        onChange={e => {
                           const id = String(f.id);
                           const next = e.target.checked
                             ? [...productForm.filament_ids, id]
-                            : productForm.filament_ids.filter((x) => x !== id);
+                            : productForm.filament_ids.filter(x => x !== id);
                           setProductForm({ ...productForm, filament_ids: next });
                         }}
                       />
@@ -449,7 +555,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
             </div>
             <div className="form-group">
               <label>Product Image</label>
-              <input type="file" accept="image/*" onChange={handleImageSelect} required={!imageFile} />
+              <input type="file" accept="image/*" onChange={handleImageSelect} required={!imageFile && !productForm.parent_product_id} />
               {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
             </div>
             <div className="form-group">
@@ -547,24 +653,25 @@ export default function App() {
     }
   }, [addToast]);
 
-  const addToCart = (product) => {
+  const addToCart = (item) => {
+    const cartId = `${item.id}_${item.variantId || ''}_${item.notes || ''}`;
     setCart(prev => {
-      const existing = prev.find(i => i.id === product.id);
-      if (existing) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { id: product.id, name: product.name, price_cents: product.price_cents, image_url: product.image_url, qty: 1 }];
+      const existing = prev.find(i => i.cartId === cartId);
+      if (existing) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
+      return [...prev, { ...item, cartId, qty: 1 }];
     });
-    addToast(`${product.name} added to cart`);
+    addToast(`${item.name} added to cart`);
   };
 
-  const updateQty = (id, delta) => {
+  const updateQty = (cartId, delta) => {
     setCart(prev => prev.map(i => {
-      if (i.id !== id) return i;
+      if (i.cartId !== cartId) return i;
       const newQty = i.qty + delta;
       return newQty > 0 ? { ...i, qty: newQty } : i;
     }));
   };
 
-  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
+  const removeFromCart = (cartId) => setCart(prev => prev.filter(i => i.cartId !== cartId));
 
   const cartCount = cart.reduce((a, b) => a + b.qty, 0);
 
@@ -574,7 +681,15 @@ export default function App() {
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: cart.map(i => ({ name: i.name, price_cents: i.price_cents, quantity: i.qty })) }),
+        body: JSON.stringify({
+          items: cart.map(i => ({
+            name: i.name,
+            price_cents: i.price_cents,
+            quantity: i.qty,
+            variant: i.variant || '',
+            notes: i.notes || '',
+          })),
+        }),
       });
       const data = await res.json();
       if (data.url) window.location.href = data.url;
