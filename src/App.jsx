@@ -36,18 +36,23 @@ function Nav({ page, setPage, cartCount }) {
 }
 
 function ShopPage({ products, onAddToCart }) {
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const chainMakerTile = {
+    id: 'chain-maker-tile',
+    name: 'Design Custom Hype Chains',
+    description: 'Build your own custom chain with your preferred style and details.',
+    image_url: 'https://designer.camwow.tv/og-image.png',
+    material: 'Custom',
+    color: 'Any',
+    isExternal: true,
+  };
+  const displayProducts = [chainMakerTile, ...products];
+
   return (
     <>
-      <section className="hero">
-        <h1>Premium 3D Printed Products</h1>
-        <p>Custom-crafted with precision. Each piece made to order with the finest filaments.</p>
-        <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-outline">
-          Design Custom Hype Chains &rarr;
-        </a>
-      </section>
       <section className="container">
         <h2 className="section-title">Featured Products</h2>
-        {products.length === 0 ? (
+        {displayProducts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">&#9883;</div>
             <p>No products yet.</p>
@@ -55,7 +60,7 @@ function ShopPage({ products, onAddToCart }) {
           </div>
         ) : (
           <div className="product-grid">
-            {products.map(p => (
+            {displayProducts.map(p => (
               <article key={p.id} className="product-card">
                 <div className="product-image-wrap">
                   <img
@@ -67,10 +72,24 @@ function ShopPage({ products, onAddToCart }) {
                 <div className="product-info">
                   <span className="product-tag">{p.material} / {p.color}</span>
                   <h3>{p.name}</h3>
-                  <p className="product-desc">{p.description}</p>
+                  <p className="product-desc">{p.description?.length > 110 ? `${p.description.slice(0, 110)}...` : p.description}</p>
+                  {!p.isExternal && p.variants?.length > 0 && (
+                    <small className="text-muted">{p.variants.length} variants available</small>
+                  )}
                   <div className="product-footer">
-                    <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
-                    <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                    {p.isExternal ? (
+                      <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-primary">
+                        Open Designer
+                      </a>
+                    ) : (
+                      <>
+                        <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="btn-sm" onClick={() => setSelectedProduct(p)}>View</button>
+                          <button className="btn-primary" onClick={() => onAddToCart(p)}>Add to Cart</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </article>
@@ -78,6 +97,37 @@ function ShopPage({ products, onAddToCart }) {
           </div>
         )}
       </section>
+      {selectedProduct && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}
+          onClick={() => setSelectedProduct(null)}
+        >
+          <div
+            style={{ background: '#fff', width: 'min(680px, 92vw)', borderRadius: '12px', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>{selectedProduct.name}</h3>
+              <button className="btn-danger-sm" onClick={() => setSelectedProduct(null)}>Close</button>
+            </div>
+            <img src={selectedProduct.image_url} alt={selectedProduct.name} style={{ width: '100%', borderRadius: '10px', marginTop: '.75rem' }} />
+            <p style={{ marginTop: '.75rem' }}>{selectedProduct.description}</p>
+            <p><strong>Base price:</strong> ${(selectedProduct.price_cents / 100).toFixed(2)}</p>
+            {selectedProduct.variants?.length > 0 && (
+              <>
+                <h4>Variants</h4>
+                <div style={{ display: 'grid', gap: '0.4rem' }}>
+                  {selectedProduct.variants.map((v) => (
+                    <div key={v.id} style={{ border: '1px solid #eee', borderRadius: '8px', padding: '0.5rem' }}>
+                      {v.theme} • {v.size} • {v.style} • {v.material}/{v.color}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -141,6 +191,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [uploading, setUploading] = useState(false);
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
+  const [editingFilamentId, setEditingFilamentId] = useState(null);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -166,7 +217,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       });
       if (res.ok) {
         addToast('Filament added');
-        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '' });
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
         setShowFilamentForm(false);
         onRefresh();
       } else addToast('Failed to add filament', 'error');
@@ -200,7 +251,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         setImagePreview(null);
         setShowProductForm(false);
         onRefresh();
-      } else addToast('Failed to add product', 'error');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast(data.error || 'Failed to add product', 'error');
+      }
     } catch { addToast('Failed to add product', 'error'); }
     setUploading(false);
   };
@@ -217,6 +271,24 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       const res = await fetch(`/api/filaments/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) { addToast('Filament deleted'); onRefresh(); }
     } catch { addToast('Failed to delete', 'error'); }
+  };
+
+  const handleEditFilament = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/filaments/${editingFilamentId}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...filamentForm, stock_grams: Number(filamentForm.stock_grams) }),
+      });
+      if (res.ok) {
+        addToast('Filament updated');
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+        setEditingFilamentId(null);
+        setShowFilamentForm(false);
+        onRefresh();
+      } else addToast('Failed to update filament', 'error');
+    } catch { addToast('Failed to update filament', 'error'); }
   };
 
   if (!isAdmin) {
@@ -250,12 +322,18 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       <div className="admin-section">
         <div className="admin-section-header">
           <h3>Filament Library</h3>
-          <button className="btn-primary" onClick={() => setShowFilamentForm(!showFilamentForm)}>
+          <button className="btn-primary" onClick={() => {
+            if (showFilamentForm) {
+              setShowFilamentForm(false);
+              setEditingFilamentId(null);
+              setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+            } else setShowFilamentForm(true);
+          }}>
             {showFilamentForm ? 'Cancel' : '+ Add Filament'}
           </button>
         </div>
         {showFilamentForm && (
-          <form className="admin-form" onSubmit={handleAddFilament}>
+          <form className="admin-form" onSubmit={editingFilamentId ? handleEditFilament : handleAddFilament}>
             <div className="form-row">
               <div className="form-group">
                 <label>Material</label>
@@ -270,11 +348,15 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={filamentForm.sku} onChange={e => setFilamentForm({ ...filamentForm, sku: e.target.value })} required placeholder="e.g. PLA-BLK-001" />
               </div>
               <div className="form-group">
+                <label>Vendor</label>
+                <input value={filamentForm.vendor} onChange={e => setFilamentForm({ ...filamentForm, vendor: e.target.value })} required placeholder="e.g. Polymaker" />
+              </div>
+              <div className="form-group">
                 <label>Stock (grams)</label>
                 <input type="number" value={filamentForm.stock_grams} onChange={e => setFilamentForm({ ...filamentForm, stock_grams: e.target.value })} required placeholder="1000" />
               </div>
             </div>
-            <button type="submit" className="btn-primary">Save Filament</button>
+            <button type="submit" className="btn-primary">{editingFilamentId ? 'Update Filament' : 'Save Filament'}</button>
           </form>
         )}
         {filaments.length === 0 ? (
@@ -282,15 +364,23 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Material</th><th>Color</th><th>SKU</th><th>Stock</th><th></th></tr></thead>
+              <thead><tr><th>Material</th><th>Color</th><th>SKU</th><th>Vendor</th><th>Stock</th><th></th></tr></thead>
               <tbody>
                 {filaments.map(f => (
                   <tr key={f.id}>
                     <td>{f.material}</td>
                     <td>{f.color}</td>
                     <td><code>{f.sku}</code></td>
+                    <td>{f.vendor || '—'}</td>
                     <td>{f.stock_grams}g</td>
-                    <td><button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button></td>
+                    <td style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn-sm" onClick={() => {
+                        setEditingFilamentId(f.id);
+                        setFilamentForm({ material: f.material, color: f.color, sku: f.sku, stock_grams: String(f.stock_grams), vendor: f.vendor || '' });
+                        setShowFilamentForm(true);
+                      }}>Edit</button>
+                      <button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -310,19 +400,51 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
           <form className="admin-form" onSubmit={handleAddProduct}>
             <div className="form-row">
               <div className="form-group">
-                <label>Name</label>
-                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required placeholder="Product name" />
+                <label>Product Group</label>
+                <select value={productForm.parent_product_id} onChange={e => setProductForm({ ...productForm, parent_product_id: e.target.value, slug: e.target.value ? '' : productForm.slug })}>
+                  <option value="">Create New Group</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </div>
+              <div className="form-group">
+                <label>Name</label>
+                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required={!productForm.parent_product_id} placeholder="Product name" />
+              </div>
+              {!productForm.parent_product_id && (
+                <div className="form-group">
+                  <label>Group Key (Slug)</label>
+                  <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
+                </div>
+              )}
               <div className="form-group">
                 <label>Price (cents)</label>
                 <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
               </div>
               <div className="form-group">
-                <label>Filament</label>
-                <select value={productForm.filament_id} onChange={e => setProductForm({ ...productForm, filament_id: e.target.value })} required>
-                  <option value="">Select filament...</option>
-                  {filaments.map(f => <option key={f.id} value={f.id}>{f.material} - {f.color}</option>)}
-                </select>
+                <label>Filaments (select one or more)</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: filaments.map((f) => String(f.id)) })}>Select All</button>
+                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: [] })}>Clear</button>
+                </div>
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '8px', padding: '0.5rem' }}>
+                  {filaments.map(f => (
+                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={productForm.filament_ids.includes(String(f.id))}
+                        onChange={(e) => {
+                          const id = String(f.id);
+                          const next = e.target.checked
+                            ? [...productForm.filament_ids, id]
+                            : productForm.filament_ids.filter((x) => x !== id);
+                          setProductForm({ ...productForm, filament_ids: next });
+                        }}
+                      />
+                      <span>{f.material} - {f.color} ({f.vendor || 'Unknown vendor'})</span>
+                    </label>
+                  ))}
+                </div>
+                {productForm.filament_ids.length === 0 && <small className="text-muted">Select at least one filament.</small>}
               </div>
             </div>
             <div className="form-group">
@@ -332,7 +454,21 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
             </div>
             <div className="form-group">
               <label>Description</label>
-              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required placeholder="Describe the product..." rows={3} />
+              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required={!productForm.parent_product_id} placeholder="Describe the product..." rows={3} />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Themes (comma-separated)</label>
+                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder="NFL, Camo, Retro" />
+              </div>
+              <div className="form-group">
+                <label>Sizes (comma-separated)</label>
+                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
+              </div>
+              <div className="form-group">
+                <label>Styles (comma-separated)</label>
+                <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
+              </div>
             </div>
             <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Uploading...' : 'Publish Product'}</button>
           </form>
@@ -342,14 +478,13 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Price</th><th>Material</th><th>Color</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Variants</th><th>Base Price</th><th></th></tr></thead>
               <tbody>
                 {products.map(p => (
                   <tr key={p.id}>
                     <td>{p.name}</td>
+                    <td>{p.variants?.length || 0}</td>
                     <td>${(p.price_cents / 100).toFixed(2)}</td>
-                    <td>{p.material}</td>
-                    <td>{p.color}</td>
                     <td><button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button></td>
                   </tr>
                 ))}
