@@ -40,12 +40,10 @@ function ProductModal({ product, onClose, onAddToCart }) {
 
   const themes = useMemo(() => [...new Set(variants.map(v => v.theme))], [variants]);
   const sizes = useMemo(() => [...new Set(variants.map(v => v.size))], [variants]);
-  const styles = useMemo(() => [...new Set(variants.map(v => v.style))], [variants]);
   const materials = useMemo(() => [...new Set(variants.map(v => `${v.material} / ${v.color}`))], [variants]);
 
   const [selectedTheme, setSelectedTheme] = useState(themes[0] || '');
   const [selectedSize, setSelectedSize] = useState(sizes[0] || '');
-  const [selectedStyle, setSelectedStyle] = useState(styles[0] || '');
   const [selectedMaterial, setSelectedMaterial] = useState(materials[0] || '');
   const [notes, setNotes] = useState('');
 
@@ -54,11 +52,10 @@ function ProductModal({ product, onClose, onAddToCart }) {
     return variants.find(v =>
       v.theme === selectedTheme &&
       v.size === selectedSize &&
-      v.style === selectedStyle &&
       v.material === matParts[0] &&
       v.color === matParts[1]
     ) || variants[0];
-  }, [variants, selectedTheme, selectedSize, selectedStyle, selectedMaterial]);
+  }, [variants, selectedTheme, selectedSize, selectedMaterial]);
 
   const price = selectedVariant?.price_cents || product.price_cents || 0;
 
@@ -66,7 +63,6 @@ function ProductModal({ product, onClose, onAddToCart }) {
     const variantLabel = [
       selectedTheme !== 'Standard' && selectedTheme,
       selectedSize !== 'Standard' && selectedSize,
-      selectedStyle !== 'Standard' && selectedStyle,
       selectedMaterial,
     ].filter(Boolean).join(', ');
     onAddToCart({
@@ -109,14 +105,6 @@ function ProductModal({ product, onClose, onAddToCart }) {
                 <label>Size</label>
                 <select value={selectedSize} onChange={e => setSelectedSize(e.target.value)}>
                   {sizes.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            )}
-            {styles.length > 1 && (
-              <div className="form-group">
-                <label>Style</label>
-                <select value={selectedStyle} onChange={e => setSelectedStyle(e.target.value)}>
-                  {styles.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             )}
@@ -178,7 +166,15 @@ function ShopPage({ products, onAddToCart }) {
           </div>
         ) : (
           <div className="product-grid">
-            {displayProducts.map(p => (
+            {displayProducts.map(p => {
+              const tileVariants = p.variants || [];
+              const uniqueColors = [...new Set(tileVariants.map(v => v.color))];
+              const uniqueMaterials = [...new Set(tileVariants.map(v => v.material))];
+              const mat = uniqueMaterials[0] || p.material;
+              const colorTag = uniqueColors.length > 1
+                ? `${mat} · ${uniqueColors.length} Colors`
+                : `${p.material} / ${p.color}`;
+              return (
               <article key={p.id} className="product-card" onClick={() => !p.isExternal && setSelectedProduct(p)} style={{ cursor: p.isExternal ? 'default' : 'pointer' }}>
                 <div className="product-image-wrap">
                   <img
@@ -188,7 +184,7 @@ function ShopPage({ products, onAddToCart }) {
                   />
                 </div>
                 <div className="product-info">
-                  <span className="product-tag">{p.material} / {p.color}</span>
+                  <span className="product-tag">{colorTag}</span>
                   <h3>{p.name}</h3>
                   <p className="product-desc">{p.description?.length > 110 ? `${p.description.slice(0, 110)}...` : p.description}</p>
                   {!p.isExternal && p.variants?.length > 0 && (
@@ -208,7 +204,8 @@ function ShopPage({ products, onAddToCart }) {
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -278,7 +275,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', parent_product_id: '', slug: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -334,7 +331,6 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
       const themes = productForm.themes ? productForm.themes.split(',').map(s => s.trim()).filter(Boolean) : ['Standard'];
       const sizes = productForm.sizes ? productForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : ['Standard'];
-      const styles = productForm.styles ? productForm.styles.split(',').map(s => s.trim()).filter(Boolean) : ['Standard'];
 
       const res = await fetch('/api/products', {
         method: 'POST', credentials: 'include',
@@ -346,13 +342,13 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
           slug: productForm.slug,
           price_cents: Number(productForm.price_cents),
           filament_ids: productForm.filament_ids,
-          themes, sizes, styles,
+          themes, sizes,
           parent_product_id: productForm.parent_product_id || undefined,
         }),
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', styles: '', parent_product_id: '', slug: '' });
+        setProductForm({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
         setImageFile(null);
         setImagePreview(null);
         setShowProductForm(false);
@@ -570,10 +566,6 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               <div className="form-group">
                 <label>Sizes (comma-separated)</label>
                 <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
-              </div>
-              <div className="form-group">
-                <label>Styles (comma-separated)</label>
-                <input value={productForm.styles} onChange={e => setProductForm({ ...productForm, styles: e.target.value })} placeholder="Classic, Handle" />
               </div>
             </div>
             <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Uploading...' : 'Publish Product'}</button>

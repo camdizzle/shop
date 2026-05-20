@@ -45,6 +45,33 @@ const upload = multer({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
 
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change-me') {
+    console.error('FATAL: JWT_SECRET is not set or is using a default value. Set a secure random string in .env');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD === 'change-me') {
+    console.error('FATAL: ADMIN_PASSWORD is not set or is using a default value. Set a secure password in .env');
+    process.exit(1);
+  }
+}
+
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > LOGIN_WINDOW_MS) {
+    entry.count = 0;
+    entry.windowStart = now;
+  }
+  entry.count += 1;
+  loginAttempts.set(ip, entry);
+  return entry.count <= LOGIN_MAX_ATTEMPTS;
+}
+
 const auth = (req, res, next) => {
   const token = req.cookies.admin_token;
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -68,6 +95,10 @@ app.get('/api/admin/me', auth, (_req, res) => {
 });
 
 app.post('/api/admin/login', (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress;
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Too many login attempts. Try again in 15 minutes.' });
+  }
   const { username, password } = req.body;
   if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
     const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '8h' });
