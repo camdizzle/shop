@@ -9,7 +9,8 @@
     "dev:client": "vite",
     "build": "node node_modules/vite/bin/vite.js build",
     "start": "node server/server.js",
-    "prod": "npm run build && npm run start"
+    "prod": "npm run build && npm run start",
+    "backup": "cp shop-data.json shop-data.backup.json && echo 'shop-data.json backed up'"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
