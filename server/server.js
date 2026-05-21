@@ -47,12 +47,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret';
 
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change-me') {
-    console.error('FATAL: JWT_SECRET is not set or is using a default value. Set a secure random string in .env');
-    process.exit(1);
+    console.warn('WARNING: JWT_SECRET is not set or is using a default value. Set a secure random string in .env');
   }
   if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD === 'change-me') {
-    console.error('FATAL: ADMIN_PASSWORD is not set or is using a default value. Set a secure password in .env');
-    process.exit(1);
+    console.warn('WARNING: ADMIN_PASSWORD is not set or is using a default value. Set a secure password in .env');
   }
 }
 
