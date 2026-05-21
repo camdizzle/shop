@@ -141,12 +141,17 @@ function ProductModal({ product, onClose, onAddToCart }) {
                 </select>
               </div>
             )}
-            {materialsForSelection.length > 1 && (
+            {materialsForSelection.length > 1 ? (
               <div className="form-group">
                 <label>Color</label>
                 <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
                   {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
+              </div>
+            ) : materialsForSelection.length === 1 && (
+              <div className="form-group">
+                <label>Color</label>
+                <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.9rem', padding: '0.5rem 0' }}>{materialsForSelection[0]}</p>
               </div>
             )}
 
@@ -171,6 +176,26 @@ function ProductModal({ product, onClose, onAddToCart }) {
 
 function ShopPage({ products, onAddToCart }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // Build per-product collage image lists once per data load (stable random order per refresh)
+  const tileImages = useMemo(() => {
+    const result = {};
+    products.forEach(p => {
+      const themeImgMap = new Map();
+      for (const v of (p.variants || [])) {
+        if (!themeImgMap.has(v.theme)) themeImgMap.set(v.theme, v.image_url || p.image_url);
+      }
+      if (themeImgMap.size === 0 && p.image_url) themeImgMap.set('', p.image_url);
+      const imgs = [...themeImgMap.values()].filter(Boolean);
+      // Fisher-Yates shuffle so order differs on each page load
+      for (let i = imgs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [imgs[i], imgs[j]] = [imgs[j], imgs[i]];
+      }
+      result[p.id] = imgs.slice(0, 3);
+    });
+    return result;
+  }, [products]);
 
   const chainMakerTile = {
     id: 'chain-maker-tile',
@@ -210,14 +235,24 @@ function ShopPage({ products, onAddToCart }) {
               const colorTag = tagParts.length > 0
                 ? `${mat} · ${tagParts.join(' · ')}`
                 : `${p.material} / ${p.color}`;
+              const imgs = tileImages[p.id] || (p.image_url ? [p.image_url] : []);
               return (
               <article key={p.id} className="product-card" onClick={() => !p.isExternal && setSelectedProduct(p)} style={{ cursor: p.isExternal ? 'default' : 'pointer' }}>
                 <div className="product-image-wrap">
-                  <img
-                    src={p.image_url}
-                    alt={p.name}
-                    onError={e => { e.target.style.display = 'none'; e.target.parentElement.classList.add('no-image'); }}
-                  />
+                  {imgs.length > 1 ? (
+                    <div className={`product-collage count-${imgs.length}`}>
+                      {imgs.map((src, i) => (
+                        <img key={i} src={src} alt={`${p.name} option ${i + 1}`}
+                          onError={e => { e.target.style.display = 'none'; }} />
+                      ))}
+                    </div>
+                  ) : (
+                    <img
+                      src={imgs[0] || p.image_url}
+                      alt={p.name}
+                      onError={e => { e.target.style.display = 'none'; e.target.parentElement.classList.add('no-image'); }}
+                    />
+                  )}
                 </div>
                 <div className="product-info">
                   <span className="product-tag">{colorTag}</span>
@@ -403,6 +438,17 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       const res = await fetch(`/api/products/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) { addToast('Product deleted'); onRefresh(); }
     } catch { addToast('Failed to delete', 'error'); }
+  };
+
+  const handleDeleteTheme = async (productId, theme) => {
+    try {
+      const res = await fetch(`/api/products/${productId}/themes/${encodeURIComponent(theme)}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        addToast(`Theme "${theme}" deleted`);
+        setEditingProduct(prev => prev ? { ...prev, variants: prev.variants.filter(v => v.theme !== theme) } : null);
+        onRefresh();
+      } else addToast('Failed to delete theme', 'error');
+    } catch { addToast('Failed to delete theme', 'error'); }
   };
 
   const startEditProduct = (p) => {
@@ -715,6 +761,33 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
               )}
             </div>
             <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Saving...' : 'Save Changes'}</button>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
+              <h4 style={{ color: 'var(--text)', marginBottom: '0.75rem' }}>Manage Themes</h4>
+              {(() => {
+                const themes = [...new Set((editingProduct.variants || []).map(v => v.theme))];
+                if (themes.length === 0) return <p className="text-muted">No themes yet.</p>;
+                return themes.map(theme => {
+                  const tvs = (editingProduct.variants || []).filter(v => v.theme === theme);
+                  const colors = [...new Set(tvs.map(v => v.color))];
+                  const sizes = [...new Set(tvs.map(v => v.size))].filter(s => s !== 'Standard');
+                  const img = tvs.find(v => v.image_url)?.image_url;
+                  return (
+                    <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.75rem', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '0.5rem' }}>
+                      {img && <img src={img} alt={theme} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <strong style={{ color: 'var(--text)', display: 'block' }}>{theme}</strong>
+                        <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                          {colors.join(', ')}{sizes.length ? ` · ${sizes.join(', ')}` : ''}
+                          {' · '}{tvs.length} variant{tvs.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <button type="button" className="btn-danger-sm" onClick={() => handleDeleteTheme(editingProduct.id, theme)}>Delete</button>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </form>
         )}
       </div>
