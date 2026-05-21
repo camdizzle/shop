@@ -141,18 +141,26 @@ function ProductModal({ product, onClose, onAddToCart }) {
                 </select>
               </div>
             )}
-            {materialsForSelection.length > 1 ? (
-              <div className="form-group">
-                <label>Color</label>
-                <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
-                  {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-            ) : materialsForSelection.length === 1 && (
-              <div className="form-group">
-                <label>Color</label>
-                <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.9rem', padding: '0.5rem 0' }}>{materialsForSelection[0]}</p>
-              </div>
+            {selectedTheme === 'Custom' ? (
+              materialsForSelection.length > 0 && (
+                <div className="form-group">
+                  <label>Color</label>
+                  <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
+                    {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              )
+            ) : (
+              materialsForSelection.length > 0 && (
+                <div className="form-group">
+                  <label>Included Colors</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.4rem 0' }}>
+                    {materialsForSelection.map(m => (
+                      <span key={m} style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.8rem', color: 'var(--text)' }}>{m}</span>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
 
             <div className="form-group">
@@ -354,6 +362,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '' });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
+  const [editingThemeName, setEditingThemeName] = useState(null);
+  const [editThemeForm, setEditThemeForm] = useState({ theme: '', price_cents: '', image_url: '' });
+  const [editThemeImageFile, setEditThemeImageFile] = useState(null);
+  const [editThemeImagePreview, setEditThemeImagePreview] = useState(null);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -449,6 +461,44 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         onRefresh();
       } else addToast('Failed to delete theme', 'error');
     } catch { addToast('Failed to delete theme', 'error'); }
+  };
+
+  const handleUpdateTheme = async () => {
+    setUploading(true);
+    try {
+      let image_url = editThemeForm.image_url;
+      if (editThemeImageFile) {
+        const form = new FormData();
+        form.append('image', editThemeImageFile);
+        const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+        if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+        const uploadData = await uploadRes.json();
+        image_url = uploadData.url;
+      }
+      const res = await fetch(`/api/products/${editingProduct.id}/themes/${encodeURIComponent(editingThemeName)}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: editThemeForm.theme, price_cents: Number(editThemeForm.price_cents) || undefined, image_url }),
+      });
+      if (res.ok) {
+        addToast('Theme updated');
+        const newThemeName = editThemeForm.theme;
+        setEditingProduct(prev => prev ? {
+          ...prev,
+          variants: prev.variants.map(v => v.theme !== editingThemeName ? v : {
+            ...v,
+            theme: newThemeName,
+            ...(editThemeForm.price_cents ? { price_cents: Number(editThemeForm.price_cents) } : {}),
+            ...(image_url ? { image_url } : {}),
+          }),
+        } : null);
+        setEditingThemeName(null);
+        setEditThemeImageFile(null);
+        setEditThemeImagePreview(null);
+        onRefresh();
+      } else addToast('Failed to update theme', 'error');
+    } catch { addToast('Failed to update theme', 'error'); }
+    setUploading(false);
   };
 
   const startEditProduct = (p) => {
@@ -772,17 +822,63 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                   const colors = [...new Set(tvs.map(v => v.color))];
                   const sizes = [...new Set(tvs.map(v => v.size))].filter(s => s !== 'Standard');
                   const img = tvs.find(v => v.image_url)?.image_url;
+                  const isEditing = editingThemeName === theme;
                   return (
-                    <div key={theme} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.75rem', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '0.5rem' }}>
-                      {img && <img src={img} alt={theme} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <strong style={{ color: 'var(--text)', display: 'block' }}>{theme}</strong>
-                        <span className="text-muted" style={{ fontSize: '0.78rem' }}>
-                          {colors.join(', ')}{sizes.length ? ` · ${sizes.join(', ')}` : ''}
-                          {' · '}{tvs.length} variant{tvs.length !== 1 ? 's' : ''}
-                        </span>
+                    <div key={theme} style={{ marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.75rem', border: `1px solid ${isEditing ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', borderBottomLeftRadius: isEditing ? 0 : '8px', borderBottomRightRadius: isEditing ? 0 : '8px' }}>
+                        {img && <img src={img} alt={theme} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ color: 'var(--text)', display: 'block' }}>{theme}</strong>
+                          <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                            {colors.join(', ')}{sizes.length ? ` · ${sizes.join(', ')}` : ''}
+                            {' · '}{tvs.length} variant{tvs.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <button type="button" className="btn-sm" style={{ width: 'auto', padding: '0.3rem 0.7rem', fontSize: '0.75rem' }} onClick={() => {
+                          if (isEditing) {
+                            setEditingThemeName(null);
+                            setEditThemeImageFile(null);
+                            setEditThemeImagePreview(null);
+                          } else {
+                            setEditingThemeName(theme);
+                            setEditThemeForm({ theme, price_cents: String(tvs[0]?.price_cents || ''), image_url: img || '' });
+                            setEditThemeImageFile(null);
+                            setEditThemeImagePreview(null);
+                          }
+                        }}>{isEditing ? 'Cancel' : 'Edit'}</button>
+                        <button type="button" className="btn-danger-sm" onClick={() => handleDeleteTheme(editingProduct.id, theme)}>Delete</button>
                       </div>
-                      <button type="button" className="btn-danger-sm" onClick={() => handleDeleteTheme(editingProduct.id, theme)}>Delete</button>
+                      {isEditing && (
+                        <div style={{ border: '1px solid var(--accent)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '0.75rem', background: 'var(--surface-1)' }}>
+                          <div className="form-row" style={{ marginBottom: '0.5rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label>Theme Name</label>
+                              <input value={editThemeForm.theme} onChange={e => setEditThemeForm({ ...editThemeForm, theme: e.target.value })} placeholder="Theme name" />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                              <label>Price (cents)</label>
+                              <input type="number" value={editThemeForm.price_cents} onChange={e => setEditThemeForm({ ...editThemeForm, price_cents: e.target.value })} placeholder="1999 = $19.99" />
+                            </div>
+                          </div>
+                          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                            <label>Replace Theme Image (optional)</label>
+                            <input type="file" accept="image/*" onChange={e => {
+                              const file = e.target.files[0];
+                              if (!file) return;
+                              setEditThemeImageFile(file);
+                              const reader = new FileReader();
+                              reader.onload = (ev) => setEditThemeImagePreview(ev.target.result);
+                              reader.readAsDataURL(file);
+                            }} />
+                            {(editThemeImagePreview || editThemeForm.image_url) && (
+                              <img src={editThemeImagePreview || editThemeForm.image_url} alt="Preview" className="image-preview" />
+                            )}
+                          </div>
+                          <button type="button" className="btn-primary" disabled={uploading} onClick={handleUpdateTheme} style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem' }}>
+                            {uploading ? 'Saving...' : 'Save Theme'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 });
