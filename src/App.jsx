@@ -38,14 +38,47 @@ function Nav({ page, setPage, cartCount }) {
 function ProductModal({ product, onClose, onAddToCart }) {
   const variants = product.variants || [];
 
-  const themes = useMemo(() => [...new Set(variants.map(v => v.theme))], [variants]);
-  const sizes = useMemo(() => [...new Set(variants.map(v => v.size))], [variants]);
-  const materials = useMemo(() => [...new Set(variants.map(v => `${v.material} / ${v.color}`))], [variants]);
+  // Compute initial cascade values once at mount
+  const allThemes = [...new Set(variants.map(v => v.theme))];
+  const _initTheme = allThemes[0] || '';
+  const _initSizes = [...new Set(variants.filter(v => v.theme === _initTheme).map(v => v.size))];
+  const _initSize = _initSizes[0] || '';
+  const _initMats = [...new Set(variants.filter(v => v.theme === _initTheme && v.size === _initSize).map(v => `${v.material} / ${v.color}`))];
 
-  const [selectedTheme, setSelectedTheme] = useState(themes[0] || '');
-  const [selectedSize, setSelectedSize] = useState(sizes[0] || '');
-  const [selectedMaterial, setSelectedMaterial] = useState(materials[0] || '');
+  const [selectedTheme, setSelectedTheme] = useState(_initTheme);
+  const [selectedSize, setSelectedSize] = useState(_initSize);
+  const [selectedMaterial, setSelectedMaterial] = useState(_initMats[0] || '');
   const [notes, setNotes] = useState('');
+
+  // Available options cascade: each tier filters based on the tier above it
+  const themes = useMemo(() => [...new Set(variants.map(v => v.theme))], [variants]);
+  const sizesForTheme = useMemo(() =>
+    [...new Set(variants.filter(v => v.theme === selectedTheme).map(v => v.size))],
+    [variants, selectedTheme]
+  );
+  const materialsForSelection = useMemo(() =>
+    [...new Set(variants
+      .filter(v => v.theme === selectedTheme && v.size === selectedSize)
+      .map(v => `${v.material} / ${v.color}`))],
+    [variants, selectedTheme, selectedSize]
+  );
+
+  // Cascade: changing theme resets size → material
+  const handleThemeChange = (newTheme) => {
+    const sizes = [...new Set(variants.filter(v => v.theme === newTheme).map(v => v.size))];
+    const firstSize = sizes[0] || '';
+    const mats = [...new Set(variants.filter(v => v.theme === newTheme && v.size === firstSize).map(v => `${v.material} / ${v.color}`))];
+    setSelectedTheme(newTheme);
+    setSelectedSize(firstSize);
+    setSelectedMaterial(mats[0] || '');
+  };
+
+  // Cascade: changing size resets material
+  const handleSizeChange = (newSize) => {
+    const mats = [...new Set(variants.filter(v => v.theme === selectedTheme && v.size === newSize).map(v => `${v.material} / ${v.color}`))];
+    setSelectedSize(newSize);
+    setSelectedMaterial(mats[0] || '');
+  };
 
   const selectedVariant = useMemo(() => {
     const matParts = selectedMaterial.split(' / ');
@@ -54,7 +87,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
       v.size === selectedSize &&
       v.material === matParts[0] &&
       v.color === matParts[1]
-    ) || variants[0];
+    ) || variants.find(v => v.theme === selectedTheme) || variants[0];
   }, [variants, selectedTheme, selectedSize, selectedMaterial]);
 
   const price = selectedVariant?.price_cents || product.price_cents || 0;
@@ -95,24 +128,24 @@ function ProductModal({ product, onClose, onAddToCart }) {
             {themes.length > 1 && (
               <div className="form-group">
                 <label>Theme</label>
-                <select value={selectedTheme} onChange={e => setSelectedTheme(e.target.value)}>
+                <select value={selectedTheme} onChange={e => handleThemeChange(e.target.value)}>
                   {themes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             )}
-            {sizes.length > 1 && (
+            {sizesForTheme.length > 1 && (
               <div className="form-group">
                 <label>Size</label>
-                <select value={selectedSize} onChange={e => setSelectedSize(e.target.value)}>
-                  {sizes.map(s => <option key={s} value={s}>{s}</option>)}
+                <select value={selectedSize} onChange={e => handleSizeChange(e.target.value)}>
+                  {sizesForTheme.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
             )}
-            {materials.length > 1 && (
+            {materialsForSelection.length > 1 && (
               <div className="form-group">
-                <label>Material / Color</label>
+                <label>Color</label>
                 <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
-                  {materials.map(m => <option key={m} value={m}>{m}</option>)}
+                  {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
             )}
@@ -168,11 +201,14 @@ function ShopPage({ products, onAddToCart }) {
           <div className="product-grid">
             {displayProducts.map(p => {
               const tileVariants = p.variants || [];
+              const uniqueThemes = [...new Set(tileVariants.map(v => v.theme))];
               const uniqueColors = [...new Set(tileVariants.map(v => v.color))];
-              const uniqueMaterials = [...new Set(tileVariants.map(v => v.material))];
-              const mat = uniqueMaterials[0] || p.material;
-              const colorTag = uniqueColors.length > 1
-                ? `${mat} · ${uniqueColors.length} Colors`
+              const mat = [...new Set(tileVariants.map(v => v.material))][0] || p.material;
+              const tagParts = [];
+              if (uniqueThemes.length > 1) tagParts.push(`${uniqueThemes.length} Themes`);
+              if (uniqueColors.length > 1) tagParts.push(`${uniqueColors.length} Colors`);
+              const colorTag = tagParts.length > 0
+                ? `${mat} · ${tagParts.join(' · ')}`
                 : `${p.material} / ${p.color}`;
               return (
               <article key={p.id} className="product-card" onClick={() => !p.isExternal && setSelectedProduct(p)} style={{ cursor: p.isExternal ? 'default' : 'pointer' }}>
@@ -187,9 +223,6 @@ function ShopPage({ products, onAddToCart }) {
                   <span className="product-tag">{colorTag}</span>
                   <h3>{p.name}</h3>
                   <p className="product-desc">{p.description?.length > 110 ? `${p.description.slice(0, 110)}...` : p.description}</p>
-                  {!p.isExternal && p.variants?.length > 0 && (
-                    <small className="text-muted">{p.variants.length} variant{p.variants.length !== 1 ? 's' : ''} available</small>
-                  )}
                   <div className="product-footer">
                     {p.isExternal ? (
                       <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-primary">
@@ -541,75 +574,87 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         </div>
         {showProductForm && (
           <form className="admin-form" onSubmit={handleAddProduct}>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Product Group</label>
-                <select value={productForm.parent_product_id} onChange={e => setProductForm({ ...productForm, parent_product_id: e.target.value, slug: e.target.value ? '' : productForm.slug })}>
-                  <option value="">Create New Group</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Name</label>
-                <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required={!productForm.parent_product_id} placeholder="Product name" />
-              </div>
-              {!productForm.parent_product_id && (
+            <div className="form-group">
+              <label>Add to Existing Product?</label>
+              <select value={productForm.parent_product_id} onChange={e => setProductForm({ ...productForm, parent_product_id: e.target.value, slug: '' })}>
+                <option value="">No — create a new product</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+
+            {productForm.parent_product_id ? (
+              <p className="text-muted" style={{ marginBottom: '0.75rem', fontSize: '0.875rem' }}>
+                Adding a new variant set to <strong style={{ color: 'var(--text)' }}>{products.find(p => String(p.id) === productForm.parent_product_id)?.name}</strong>. Upload the photo for this theme and pick its filaments below.
+              </p>
+            ) : (
+              <div className="form-row">
                 <div className="form-group">
-                  <label>Group Key (Slug)</label>
-                  <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="cooler-can-holder" />
+                  <label>Product Name</label>
+                  <input value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} required placeholder="e.g. Can Cooler" />
                 </div>
-              )}
+                <div className="form-group">
+                  <label>URL Slug (optional)</label>
+                  <input value={productForm.slug} onChange={e => setProductForm({ ...productForm, slug: e.target.value })} placeholder="can-cooler" />
+                </div>
+              </div>
+            )}
+
+            <div className="form-row">
               <div className="form-group">
                 <label>Price (cents)</label>
                 <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
               </div>
               <div className="form-group">
-                <label>Filaments (select one or more)</label>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: filaments.map(f => String(f.id)) })}>Select All</button>
-                  <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: [] })}>Clear</button>
-                </div>
-                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem' }}>
-                  {filaments.map(f => (
-                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', color: 'var(--text)' }}>
-                      <input
-                        type="checkbox"
-                        checked={productForm.filament_ids.includes(String(f.id))}
-                        onChange={e => {
-                          const id = String(f.id);
-                          const next = e.target.checked
-                            ? [...productForm.filament_ids, id]
-                            : productForm.filament_ids.filter(x => x !== id);
-                          setProductForm({ ...productForm, filament_ids: next });
-                        }}
-                      />
-                      <span>{f.material} - {f.color} ({f.vendor || 'Unknown vendor'})</span>
-                    </label>
-                  ))}
-                </div>
-                {productForm.filament_ids.length === 0 && <small className="text-muted">Select at least one filament.</small>}
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Product Image</label>
-              <input type="file" accept="image/*" onChange={handleImageSelect} required={!imageFile && !productForm.parent_product_id} />
-              {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
-            </div>
-            <div className="form-group">
-              <label>Description</label>
-              <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required={!productForm.parent_product_id} placeholder="Describe the product..." rows={3} />
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Themes (comma-separated)</label>
-                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder="NFL, Camo, Retro" />
+                <label>Theme label for this set</label>
+                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder={productForm.parent_product_id ? 'e.g. NFL' : 'e.g. NFL, Camo (leave blank for Standard)'} />
               </div>
               <div className="form-group">
                 <label>Sizes (comma-separated)</label>
-                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz" />
+                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz (leave blank for Standard)" />
               </div>
             </div>
-            <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Uploading...' : 'Publish Product'}</button>
+
+            <div className="form-group">
+              <label>{productForm.parent_product_id ? 'Photo for this theme' : 'Product Image'}</label>
+              <input type="file" accept="image/*" onChange={handleImageSelect} required={!imageFile && !productForm.parent_product_id} />
+              {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
+            </div>
+
+            {!productForm.parent_product_id && (
+              <div className="form-group">
+                <label>Description</label>
+                <textarea value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} required placeholder="Describe the product..." rows={3} />
+              </div>
+            )}
+
+            <div className="form-group">
+              <label>Filaments / Colors for this set</label>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: filaments.map(f => String(f.id)) })}>Select All</button>
+                <button type="button" className="btn-sm" onClick={() => setProductForm({ ...productForm, filament_ids: [] })}>Clear</button>
+              </div>
+              <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem' }}>
+                {filaments.map(f => (
+                  <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', color: 'var(--text)' }}>
+                    <input
+                      type="checkbox"
+                      checked={productForm.filament_ids.includes(String(f.id))}
+                      onChange={e => {
+                        const id = String(f.id);
+                        const next = e.target.checked
+                          ? [...productForm.filament_ids, id]
+                          : productForm.filament_ids.filter(x => x !== id);
+                        setProductForm({ ...productForm, filament_ids: next });
+                      }}
+                    />
+                    <span>{f.material} — {f.color} ({f.vendor || 'Unknown vendor'})</span>
+                  </label>
+                ))}
+              </div>
+              {productForm.filament_ids.length === 0 && <small className="text-muted">Select at least one filament.</small>}
+            </div>
+
+            <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Uploading...' : productForm.parent_product_id ? 'Add Variant Set' : 'Publish Product'}</button>
           </form>
         )}
         {products.length === 0 ? (
@@ -617,19 +662,24 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Variants</th><th>Base Price</th><th></th></tr></thead>
+              <thead><tr><th>Name</th><th>Themes</th><th>Colors</th><th>Price from</th><th></th></tr></thead>
               <tbody>
-                {products.map(p => (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td>{p.variants?.length || 0}</td>
-                    <td>${(p.price_cents / 100).toFixed(2)}</td>
-                    <td style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn-sm" onClick={() => startEditProduct(p)}>Edit</button>
-                      <button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
+                {products.map(p => {
+                  const pThemes = [...new Set((p.variants || []).map(v => v.theme))];
+                  const pColors = [...new Set((p.variants || []).map(v => v.color))];
+                  return (
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
+                      <td>{pThemes.join(', ') || '—'}</td>
+                      <td>{pColors.length > 3 ? `${pColors.length} colors` : pColors.join(', ') || '—'}</td>
+                      <td>${(p.price_cents / 100).toFixed(2)}</td>
+                      <td style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button className="btn-sm" onClick={() => startEditProduct(p)}>Edit</button>
+                        <button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
