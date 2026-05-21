@@ -109,6 +109,15 @@ export function deleteProduct(id) {
   return true;
 }
 
+export function deleteProductTheme(productId, theme) {
+  const data = load();
+  const before = data.variants.length;
+  data.variants = data.variants.filter((v) => !(v.product_id === productId && v.theme === theme));
+  if (data.variants.length === before) return false;
+  save(data);
+  return true;
+}
+
 export function updateProduct(id, input) {
   const data = load();
   const idx = data.products.findIndex((p) => p.id === id);

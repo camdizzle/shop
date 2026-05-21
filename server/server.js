@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament, updateProduct } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, getFilaments, getProducts, updateFilament, updateProduct } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,6 +170,12 @@ app.put('/api/products/:id', auth, async (req, res) => {
   const row = updateProduct(Number(req.params.id), { name, description, image_url, slug });
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
+});
+
+app.delete('/api/products/:id/themes/:theme', auth, (req, res) => {
+  const ok = deleteProductTheme(Number(req.params.id), req.params.theme);
+  if (ok) return res.json({ ok: true });
+  res.status(404).json({ error: 'Not found' });
 });
 
 app.delete('/api/products/:id', auth, (req, res) => {
