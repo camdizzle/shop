@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, getFilaments, getProducts, updateFilament, updateProduct } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -148,7 +148,7 @@ app.post('/api/products', auth, (req, res) => {
     for (const theme of normalizedThemes) {
       for (const size of normalizedSizes) {
         for (const style of normalizedStyles) {
-          variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents) });
+          variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents), ...(image_url ? { image_url } : {}) });
         }
       }
     }
@@ -163,6 +163,13 @@ app.post('/api/products', auth, (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message || 'Unable to create product.' });
   }
+});
+
+app.put('/api/products/:id', auth, async (req, res) => {
+  const { name, description, image_url, slug } = req.body;
+  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug });
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
 });
 
 app.delete('/api/products/:id', auth, (req, res) => {

@@ -86,7 +86,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
         </div>
         <div className="modal-body">
           <div className="modal-image">
-            <img src={product.image_url} alt={product.name} />
+            <img src={selectedVariant?.image_url || product.image_url} alt={product.name} />
           </div>
           <div className="modal-info">
             <p className="modal-desc">{product.description}</p>
@@ -282,6 +282,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [showFilamentForm, setShowFilamentForm] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '' });
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -366,6 +370,43 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       const res = await fetch(`/api/products/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) { addToast('Product deleted'); onRefresh(); }
     } catch { addToast('Failed to delete', 'error'); }
+  };
+
+  const startEditProduct = (p) => {
+    setEditingProduct(p);
+    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '' });
+    setEditImageFile(null);
+    setEditImagePreview(null);
+    setShowProductForm(false);
+  };
+
+  const handleEditProduct = async (e) => {
+    e.preventDefault();
+    setUploading(true);
+    try {
+      let image_url = editProductForm.image_url;
+      if (editImageFile) {
+        const form = new FormData();
+        form.append('image', editImageFile);
+        const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+        if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+        const uploadData = await uploadRes.json();
+        image_url = uploadData.url;
+      }
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url }),
+      });
+      if (res.ok) {
+        addToast('Product updated');
+        setEditingProduct(null);
+        setEditImageFile(null);
+        setEditImagePreview(null);
+        onRefresh();
+      } else addToast('Failed to update product', 'error');
+    } catch { addToast('Failed to update product', 'error'); }
+    setUploading(false);
   };
 
   const handleDeleteFilament = async (id) => {
@@ -583,12 +624,48 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                     <td>{p.name}</td>
                     <td>{p.variants?.length || 0}</td>
                     <td>${(p.price_cents / 100).toFixed(2)}</td>
-                    <td><button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button></td>
+                    <td style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button className="btn-sm" onClick={() => startEditProduct(p)}>Edit</button>
+                      <button className="btn-danger-sm" onClick={() => handleDeleteProduct(p.id)}>Delete</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+        {editingProduct && (
+          <form className="admin-form" onSubmit={handleEditProduct} style={{ marginTop: '1.5rem' }}>
+            <div className="admin-section-header" style={{ marginBottom: '1rem' }}>
+              <h4 style={{ color: 'var(--text)' }}>Editing: {editingProduct.name}</h4>
+              <button type="button" className="btn-outline" onClick={() => setEditingProduct(null)}>Cancel</button>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Name</label>
+                <input value={editProductForm.name} onChange={e => setEditProductForm({ ...editProductForm, name: e.target.value })} required placeholder="Product name" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea value={editProductForm.description} onChange={e => setEditProductForm({ ...editProductForm, description: e.target.value })} rows={3} placeholder="Product description..." />
+            </div>
+            <div className="form-group">
+              <label>Replace Main Image (optional)</label>
+              <input type="file" accept="image/*" onChange={e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                setEditImageFile(file);
+                const reader = new FileReader();
+                reader.onload = (ev) => setEditImagePreview(ev.target.result);
+                reader.readAsDataURL(file);
+              }} />
+              {(editImagePreview || editProductForm.image_url) && (
+                <img src={editImagePreview || editProductForm.image_url} alt="Preview" className="image-preview" />
+              )}
+            </div>
+            <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Saving...' : 'Save Changes'}</button>
+          </form>
         )}
       </div>
     </section>
