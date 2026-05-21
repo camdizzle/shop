@@ -1,4 +1,5 @@
 node_modules/
+dist/
 .env
 shop-data.json
 uploads/
