@@ -44,10 +44,12 @@ function ProductModal({ product, onClose, onAddToCart }) {
   const _initSizes = [...new Set(variants.filter(v => v.theme === _initTheme).map(v => v.size))];
   const _initSize = _initSizes[0] || '';
   const _initMats = [...new Set(variants.filter(v => v.theme === _initTheme && v.size === _initSize).map(v => `${v.material} / ${v.color}`))];
+  const allProductColors = [...new Set(variants.map(v => `${v.material} / ${v.color}`))];
 
   const [selectedTheme, setSelectedTheme] = useState(_initTheme);
   const [selectedSize, setSelectedSize] = useState(_initSize);
   const [selectedMaterial, setSelectedMaterial] = useState(_initMats[0] || '');
+  const [selectedColor2, setSelectedColor2] = useState(allProductColors[0] || '');
   const [notes, setNotes] = useState('');
 
   // Available options cascade: each tier filters based on the tier above it
@@ -93,10 +95,13 @@ function ProductModal({ product, onClose, onAddToCart }) {
   const price = selectedVariant?.price_cents || product.price_cents || 0;
 
   const handleAdd = () => {
+    const colorPart = product.color_label_2
+      ? [`${product.color_label_1 || 'Color 1'}: ${selectedMaterial}`, `${product.color_label_2}: ${selectedColor2}`].join(', ')
+      : selectedMaterial;
     const variantLabel = [
       selectedTheme !== 'Standard' && selectedTheme,
       selectedSize !== 'Standard' && selectedSize,
-      selectedMaterial,
+      colorPart,
     ].filter(Boolean).join(', ');
     onAddToCart({
       id: product.id,
@@ -144,14 +149,14 @@ function ProductModal({ product, onClose, onAddToCart }) {
             {(selectedTheme === 'Custom' || themes.length === 1) ? (
               materialsForSelection.length > 1 ? (
                 <div className="form-group">
-                  <label>Color</label>
+                  <label>{product.color_label_1 || 'Color'}</label>
                   <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
                     {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
               ) : materialsForSelection.length === 1 && (
                 <div className="form-group">
-                  <label>Color</label>
+                  <label>{product.color_label_1 || 'Color'}</label>
                   <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.9rem', padding: '0.5rem 0' }}>{materialsForSelection[0]}</p>
                 </div>
               )
@@ -166,6 +171,14 @@ function ProductModal({ product, onClose, onAddToCart }) {
                   </div>
                 </div>
               )
+            )}
+            {product.color_label_2 && allProductColors.length > 0 && (
+              <div className="form-group">
+                <label>{product.color_label_2}</label>
+                <select value={selectedColor2} onChange={e => setSelectedColor2(e.target.value)}>
+                  {allProductColors.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
             )}
 
             <div className="form-group">
@@ -364,7 +377,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '' });
+  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '' });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [editingThemeName, setEditingThemeName] = useState(null);
@@ -508,7 +521,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
 
   const startEditProduct = (p) => {
     setEditingProduct(p);
-    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '' });
+    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '' });
     setEditImageFile(null);
     setEditImagePreview(null);
     setShowProductForm(false);
@@ -530,7 +543,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       const res = await fetch(`/api/products/${editingProduct.id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url }),
+        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined }),
       });
       if (res.ok) {
         addToast('Product updated');
@@ -815,6 +828,22 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <img src={editImagePreview || editProductForm.image_url} alt="Preview" className="image-preview" />
               )}
             </div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+              <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Color Selector Labels</h4>
+              <div className="form-row">
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Color 1 Label</label>
+                  <input value={editProductForm.color_label_1} onChange={e => setEditProductForm({ ...editProductForm, color_label_1: e.target.value })} placeholder="Color" />
+                  <small className="text-muted">Label shown above the first color dropdown. Default: "Color"</small>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Color 2 Label</label>
+                  <input value={editProductForm.color_label_2} onChange={e => setEditProductForm({ ...editProductForm, color_label_2: e.target.value })} placeholder="Leave blank to disable" />
+                  <small className="text-muted">Enables a second color picker. e.g. "Foreground Tone"</small>
+                </div>
+              </div>
+            </div>
+
             <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Saving...' : 'Save Changes'}</button>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>

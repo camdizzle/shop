@@ -140,7 +140,7 @@ export function updateProduct(id, input) {
   const data = load();
   const idx = data.products.findIndex((p) => p.id === id);
   if (idx === -1) return null;
-  const allowed = ['name', 'description', 'image_url', 'slug'];
+  const allowed = ['name', 'description', 'image_url', 'slug', 'color_label_1', 'color_label_2'];
   const update = Object.fromEntries(Object.entries(input).filter(([k]) => allowed.includes(k)));
   data.products[idx] = { ...data.products[idx], ...update };
   save(data);
