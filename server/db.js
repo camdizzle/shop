@@ -95,7 +95,10 @@ export function getProducts() {
       const filament = data.filaments.find((f) => f.id === v.filament_id);
       return { ...v, material: filament?.material || 'Unknown', color: filament?.color || 'Unknown', color_hex: filament?.color_hex || null };
     });
-    return { ...p, variants, price_cents: variants[0]?.price_cents || 0, material: variants[0]?.material || 'Unknown', color: variants[0]?.color || 'Unknown' };
+    const prices = variants.map(v => v.price_cents || 0);
+    const minPrice = prices.length ? Math.min(...prices) : 0;
+    const hasMultiplePrices = new Set(prices).size > 1;
+    return { ...p, variants, price_cents: minPrice, has_multiple_prices: hasMultiplePrices, material: variants[0]?.material || 'Unknown', color: variants[0]?.color || 'Unknown' };
   }).sort((a, b) => b.id - a.id);
 }
 
@@ -157,11 +160,24 @@ export function updateProductTheme(productId, oldTheme, updates) {
   return true;
 }
 
+export function updateProductSize(productId, size, { price_cents }) {
+  const data = load();
+  let changed = false;
+  data.variants = data.variants.map((v) => {
+    if (v.product_id !== productId || v.size !== size) return v;
+    changed = true;
+    return { ...v, price_cents };
+  });
+  if (!changed) return false;
+  save(data);
+  return true;
+}
+
 export function updateProduct(id, input) {
   const data = load();
   const idx = data.products.findIndex((p) => p.id === id);
   if (idx === -1) return null;
-  const allowed = ['name', 'description', 'image_url', 'slug', 'color_label_1', 'color_label_2'];
+  const allowed = ['name', 'description', 'image_url', 'slug', 'color_label_1', 'color_label_2', 'color_label_3'];
   const update = Object.fromEntries(Object.entries(input).filter(([k]) => allowed.includes(k)));
   data.products[idx] = { ...data.products[idx], ...update };
   save(data);

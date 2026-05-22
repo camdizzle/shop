@@ -50,6 +50,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
   const [selectedSize, setSelectedSize] = useState(_initSize);
   const [selectedMaterial, setSelectedMaterial] = useState(_initMats[0] || '');
   const [selectedColor2, setSelectedColor2] = useState(allProductColors[0] || '');
+  const [selectedColor3, setSelectedColor3] = useState(allProductColors[0] || '');
   const [notes, setNotes] = useState('');
 
   // Available options cascade: each tier filters based on the tier above it
@@ -103,9 +104,12 @@ function ProductModal({ product, onClose, onAddToCart }) {
 
   const handleAdd = () => {
     const colorName = m => m.split(' / ')[1] || m;
-    const colorPart = product.color_label_2
-      ? [`${product.color_label_1 || 'Color 1'}: ${colorName(selectedMaterial)}`, `${product.color_label_2}: ${colorName(selectedColor2)}`].join(', ')
-      : colorName(selectedMaterial);
+    const colorParts = [
+      product.color_label_2 ? `${product.color_label_1 || 'Color 1'}: ${colorName(selectedMaterial)}` : colorName(selectedMaterial),
+      product.color_label_2 && `${product.color_label_2}: ${colorName(selectedColor2)}`,
+      product.color_label_3 && `${product.color_label_3}: ${colorName(selectedColor3)}`,
+    ].filter(Boolean);
+    const colorPart = colorParts.join(', ');
     const variantLabel = [
       selectedTheme !== 'Standard' && selectedTheme,
       selectedSize !== 'Standard' && selectedSize,
@@ -197,6 +201,17 @@ function ProductModal({ product, onClose, onAddToCart }) {
                     {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
                   </select>
                   {colorHexMap[selectedColor2] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor2], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                </div>
+              </div>
+            )}
+            {product.color_label_3 && allProductColors.length > 0 && (
+              <div className="form-group">
+                <label>{product.color_label_3}</label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <select style={{ flex: 1 }} value={selectedColor3} onChange={e => setSelectedColor3(e.target.value)}>
+                    {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
+                  </select>
+                  {colorHexMap[selectedColor3] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor3], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
                 </div>
               </div>
             )}
@@ -313,7 +328,7 @@ function ShopPage({ products, onAddToCart, siteConfig }) {
                       </a>
                     ) : (
                       <>
-                        <span className="product-price">${(p.price_cents / 100).toFixed(2)}</span>
+                        <span className="product-price">{p.has_multiple_prices ? 'from ' : ''}${(p.price_cents / 100).toFixed(2)}</span>
                         <button className="btn-primary" onClick={e => { e.stopPropagation(); setSelectedProduct(p); }}>View</button>
                       </>
                     )}
@@ -391,7 +406,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '', color_hex: '' });
-  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
+  const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', size_prices: {}, filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -399,7 +414,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '' });
+  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '' });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [chainMakerForm, setChainMakerForm] = useState(null);
@@ -409,6 +424,8 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [editThemeForm, setEditThemeForm] = useState({ theme: '', price_cents: '', image_url: '' });
   const [editThemeImageFile, setEditThemeImageFile] = useState(null);
   const [editThemeImagePreview, setEditThemeImagePreview] = useState(null);
+  const [editingSizeName, setEditingSizeName] = useState(null);
+  const [editSizePrice, setEditSizePrice] = useState('');
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -468,6 +485,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
           image_url,
           slug: productForm.slug,
           price_cents: Number(productForm.price_cents),
+          size_prices: productForm.size_prices || {},
           filament_ids: productForm.filament_ids,
           themes, sizes,
           parent_product_id: productForm.parent_product_id || undefined,
@@ -475,7 +493,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
       });
       if (res.ok) {
         addToast('Product published');
-        setProductForm({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
+        setProductForm({ name: '', description: '', price_cents: '', size_prices: {}, filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
         setImageFile(null);
         setImagePreview(null);
         setShowProductForm(false);
@@ -571,9 +589,28 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
     setUploading(false);
   };
 
+  const handleUpdateSize = async () => {
+    try {
+      const res = await fetch(`/api/products/${editingProduct.id}/sizes/${encodeURIComponent(editingSizeName)}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price_cents: Number(editSizePrice) }),
+      });
+      if (res.ok) {
+        addToast('Size price updated');
+        setEditingProduct(prev => prev ? {
+          ...prev,
+          variants: prev.variants.map(v => v.size !== editingSizeName ? v : { ...v, price_cents: Number(editSizePrice) }),
+        } : null);
+        setEditingSizeName(null);
+        onRefresh();
+      } else addToast('Failed to update size price', 'error');
+    } catch { addToast('Failed to update size price', 'error'); }
+  };
+
   const startEditProduct = (p) => {
     setEditingProduct(p);
-    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '' });
+    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '' });
     setEditImageFile(null);
     setEditImagePreview(null);
     setShowProductForm(false);
@@ -595,7 +632,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
       const res = await fetch(`/api/products/${editingProduct.id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined }),
+        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined }),
       });
       if (res.ok) {
         addToast('Product updated');
@@ -831,20 +868,39 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
               </div>
             )}
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>Price (cents)</label>
-                <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
-              </div>
-              <div className="form-group">
-                <label>Theme label for this set</label>
-                <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder={productForm.parent_product_id ? 'e.g. NFL' : 'e.g. NFL, Camo (leave blank for Standard)'} />
-              </div>
-              <div className="form-group">
-                <label>Sizes (comma-separated)</label>
-                <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz (leave blank for Standard)" />
-              </div>
-            </div>
+            {(() => {
+              const parsedSizes = productForm.sizes ? productForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+              return (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Theme label for this set</label>
+                      <input value={productForm.themes} onChange={e => setProductForm({ ...productForm, themes: e.target.value })} placeholder={productForm.parent_product_id ? 'e.g. NFL' : 'e.g. NFL, Camo (leave blank for Standard)'} />
+                    </div>
+                    <div className="form-group">
+                      <label>Sizes (comma-separated)</label>
+                      <input value={productForm.sizes} onChange={e => setProductForm({ ...productForm, sizes: e.target.value })} placeholder="12oz, 16oz (leave blank for Standard)" />
+                    </div>
+                  </div>
+                  {parsedSizes.length > 1 ? (
+                    <div className="form-group">
+                      <label>Price per Size (cents)</label>
+                      {parsedSizes.map(size => (
+                        <div key={size} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                          <span style={{ minWidth: '90px', color: 'var(--text)', fontSize: '0.9rem', fontWeight: 500 }}>{size}</span>
+                          <input type="number" value={productForm.size_prices?.[size] || ''} onChange={e => setProductForm({ ...productForm, size_prices: { ...productForm.size_prices, [size]: e.target.value } })} placeholder="1999 = $19.99" required />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="form-group">
+                      <label>Price (cents)</label>
+                      <input type="number" value={productForm.price_cents} onChange={e => setProductForm({ ...productForm, price_cents: e.target.value })} required placeholder="1999 = $19.99" />
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="form-group">
               <label>{productForm.parent_product_id ? 'Photo for this theme' : 'Product Image'}</label>
@@ -960,10 +1016,50 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                   <input value={editProductForm.color_label_2} onChange={e => setEditProductForm({ ...editProductForm, color_label_2: e.target.value })} placeholder="Leave blank to disable" />
                   <small className="text-muted">Enables a second color picker. e.g. "Foreground Tone"</small>
                 </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Color 3 Label</label>
+                  <input value={editProductForm.color_label_3} onChange={e => setEditProductForm({ ...editProductForm, color_label_3: e.target.value })} placeholder="Leave blank to disable" />
+                  <small className="text-muted">Enables a third color picker. e.g. "Accent Color"</small>
+                </div>
               </div>
             </div>
 
             <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Saving...' : 'Save Changes'}</button>
+
+            {(() => {
+              const sizes = [...new Set((editingProduct.variants || []).map(v => v.size))].filter(s => s !== 'Standard');
+              if (sizes.length === 0) return null;
+              return (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
+                  <h4 style={{ color: 'var(--text)', marginBottom: '0.75rem' }}>Manage Size Pricing</h4>
+                  {sizes.map(size => {
+                    const sizeVariants = (editingProduct.variants || []).filter(v => v.size === size);
+                    const currentPrice = sizeVariants[0]?.price_cents || 0;
+                    const isEditing = editingSizeName === size;
+                    return (
+                      <div key={size} style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.75rem', border: `1px solid ${isEditing ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '8px', borderBottomLeftRadius: isEditing ? 0 : '8px', borderBottomRightRadius: isEditing ? 0 : '8px' }}>
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ color: 'var(--text)' }}>{size}</strong>
+                            <span className="text-muted" style={{ fontSize: '0.78rem', marginLeft: '0.5rem' }}>${(currentPrice / 100).toFixed(2)}</span>
+                          </div>
+                          <button type="button" className="btn-sm" style={{ width: 'auto', padding: '0.3rem 0.7rem', fontSize: '0.75rem' }} onClick={() => {
+                            if (isEditing) { setEditingSizeName(null); } else { setEditingSizeName(size); setEditSizePrice(String(currentPrice)); }
+                          }}>{isEditing ? 'Cancel' : 'Edit'}</button>
+                        </div>
+                        {isEditing && (
+                          <div style={{ border: '1px solid var(--accent)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '0.75rem', background: 'var(--surface-1)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                            <input type="number" value={editSizePrice} onChange={e => setEditSizePrice(e.target.value)} placeholder="Price in cents" style={{ flex: 1, padding: '0.6rem 0.8rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', fontSize: '0.9rem', fontFamily: 'inherit' }} />
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{editSizePrice ? `= $${(Number(editSizePrice) / 100).toFixed(2)}` : ''}</span>
+                            <button type="button" className="btn-primary" style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem', whiteSpace: 'nowrap' }} onClick={handleUpdateSize}>Save Price</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
               <h4 style={{ color: 'var(--text)', marginBottom: '0.75rem' }}>Manage Themes</h4>

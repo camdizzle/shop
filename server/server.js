@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductTheme, updateSiteConfig } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,7 +149,7 @@ app.get('/api/products', (_req, res) => {
 });
 
 app.post('/api/products', auth, (req, res) => {
-  const { parent_product_id, name, description, image_url, slug, price_cents, filament_ids = [], themes = ['Standard'], sizes = ['Standard'], styles = ['Standard'] } = req.body;
+  const { parent_product_id, name, description, image_url, slug, price_cents, size_prices = {}, filament_ids = [], themes = ['Standard'], sizes = ['Standard'], styles = ['Standard'] } = req.body;
   const normalizedThemes = Array.isArray(themes) && themes.length ? themes : ['Standard'];
   const normalizedSizes = Array.isArray(sizes) && sizes.length ? sizes : ['Standard'];
   const normalizedStyles = Array.isArray(styles) && styles.length ? styles : ['Standard'];
@@ -157,8 +157,9 @@ app.post('/api/products', auth, (req, res) => {
   for (const filament_id of filament_ids) {
     for (const theme of normalizedThemes) {
       for (const size of normalizedSizes) {
+        const variantPrice = size_prices[size] !== undefined ? Number(size_prices[size]) : Number(price_cents);
         for (const style of normalizedStyles) {
-          variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents), ...(image_url ? { image_url } : {}) });
+          variants.push({ filament_id: Number(filament_id), theme, size, style, price_cents: variantPrice, ...(image_url ? { image_url } : {}) });
         }
       }
     }
@@ -176,9 +177,16 @@ app.post('/api/products', auth, (req, res) => {
 });
 
 app.put('/api/products/:id', auth, async (req, res) => {
-  const { name, description, image_url, slug, color_label_1, color_label_2 } = req.body;
-  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug, color_label_1, color_label_2 });
+  const { name, description, image_url, slug, color_label_1, color_label_2, color_label_3 } = req.body;
+  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug, color_label_1, color_label_2, color_label_3 });
   if (!row) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+app.put('/api/products/:id/sizes/:size', auth, (req, res) => {
+  const { price_cents } = req.body;
+  const ok = updateProductSize(Number(req.params.id), req.params.size, { price_cents: Number(price_cents) });
+  if (!ok) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });
 
