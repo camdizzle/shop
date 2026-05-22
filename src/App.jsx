@@ -141,13 +141,18 @@ function ProductModal({ product, onClose, onAddToCart }) {
                 </select>
               </div>
             )}
-            {selectedTheme === 'Custom' ? (
-              materialsForSelection.length > 0 && (
+            {(selectedTheme === 'Custom' || themes.length === 1) ? (
+              materialsForSelection.length > 1 ? (
                 <div className="form-group">
                   <label>Color</label>
                   <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
                     {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
+                </div>
+              ) : materialsForSelection.length === 1 && (
+                <div className="form-group">
+                  <label>Color</label>
+                  <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.9rem', padding: '0.5rem 0' }}>{materialsForSelection[0]}</p>
                 </div>
               )
             ) : (
