@@ -260,7 +260,7 @@ function ShopPage({ products, onAddToCart, siteConfig }) {
     <>
       <section className="hero">
         <h1>C2 3D Print Shop</h1>
-        <p>Premium 3D printed products crafted with precision and care.</p>
+        <p>A husband-and-wife print shop with purpose — every order helps fund our son Dean's soccer.</p>
       </section>
       <section className="container">
         <h2 className="section-title">Featured Products</h2>
