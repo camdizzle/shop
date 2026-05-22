@@ -177,8 +177,8 @@ app.post('/api/products', auth, (req, res) => {
 });
 
 app.put('/api/products/:id', auth, async (req, res) => {
-  const { name, description, image_url, slug, color_label_1, color_label_2, color_label_3 } = req.body;
-  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug, color_label_1, color_label_2, color_label_3 });
+  const { name, description, image_url, slug, color_label_1, color_label_2, color_label_3, buy_n_get_1_free } = req.body;
+  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug, color_label_1, color_label_2, color_label_3, buy_n_get_1_free: buy_n_get_1_free || null });
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });

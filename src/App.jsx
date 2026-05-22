@@ -51,6 +51,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
   const [selectedMaterial, setSelectedMaterial] = useState(_initMats[0] || '');
   const [selectedColor2, setSelectedColor2] = useState(allProductColors[0] || '');
   const [selectedColor3, setSelectedColor3] = useState(allProductColors[0] || '');
+  const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
 
   // Available options cascade: each tier filters based on the tier above it
@@ -120,9 +121,10 @@ function ProductModal({ product, onClose, onAddToCart }) {
       variantId: selectedVariant?.id,
       name: product.name,
       price_cents: price,
-      image_url: product.image_url,
+      image_url: selectedVariant?.image_url || product.image_url,
       variant: variantLabel,
       notes: notes.trim(),
+      qty,
     });
     onClose();
   };
@@ -227,6 +229,19 @@ function ProductModal({ product, onClose, onAddToCart }) {
               <small className="text-muted">Provide your team, theme, or custom color request not listed above.</small>
             </div>
 
+            {product.buy_n_get_1_free > 0 && (
+              <div style={{ background: 'var(--accent-glow)', border: '1px solid rgba(124,58,237,0.25)', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.8rem', color: 'var(--accent-light)' }}>
+                Buy {product.buy_n_get_1_free}, get 1 FREE!
+              </div>
+            )}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Quantity</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <button type="button" className="btn-sm" onClick={() => setQty(q => Math.max(1, q - 1))}>&#8722;</button>
+                <span style={{ minWidth: '2rem', textAlign: 'center', fontWeight: 600, fontSize: '1.05rem' }}>{qty}</span>
+                <button type="button" className="btn-sm" onClick={() => setQty(q => q + 1)}>+</button>
+              </div>
+            </div>
             <button className="btn-primary btn-full" onClick={handleAdd}>Add to Cart</button>
           </div>
         </div>
@@ -351,8 +366,46 @@ function ShopPage({ products, onAddToCart, siteConfig }) {
   );
 }
 
-function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
+function CartPage({ cart, products, onUpdateQty, onRemove, onCheckout, onBrowse, onAddToCart }) {
   const total = cart.reduce((sum, i) => sum + i.price_cents * i.qty, 0);
+
+  // Compute buy-N-get-1-free progress for each qualifying product
+  const discountAlerts = useMemo(() => {
+    const paidQtyById = {};
+    const freeQtyById = {};
+    cart.forEach(item => {
+      if (item.isFreeItem) freeQtyById[item.id] = (freeQtyById[item.id] || 0) + item.qty;
+      else paidQtyById[item.id] = (paidQtyById[item.id] || 0) + item.qty;
+    });
+    return products
+      .filter(p => p.buy_n_get_1_free > 0 && (paidQtyById[p.id] || 0) > 0)
+      .map(p => {
+        const n = p.buy_n_get_1_free;
+        const paid = paidQtyById[p.id] || 0;
+        const free = freeQtyById[p.id] || 0;
+        const earned = Math.floor(paid / n);
+        const claimable = Math.max(0, earned - free);
+        const progress = paid % n;
+        const needed = n - progress;
+        const pct = Math.round((progress / n) * 100);
+        return { p, n, paid, claimable, progress, needed, pct };
+      });
+  }, [cart, products]);
+
+  const getAlertStyle = (pct, claimable) => {
+    if (claimable > 0) return { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)', color: '#10b981', bar: '#10b981' };
+    if (pct >= 75) return { bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', color: '#f59e0b', bar: '#f59e0b' };
+    if (pct >= 50) return { bg: 'rgba(124,58,237,0.1)', border: 'rgba(124,58,237,0.25)', color: 'var(--accent-light)', bar: 'var(--accent)' };
+    return { bg: 'rgba(124,58,237,0.06)', border: 'rgba(124,58,237,0.15)', color: 'var(--text-secondary)', bar: 'var(--accent)' };
+  };
+
+  const getAlertMessage = ({ p, n, claimable, progress, needed, pct }) => {
+    if (claimable > 0) return `You earned ${claimable} free ${p.name}${claimable > 1 ? 's' : ''}! Claim ${claimable > 1 ? 'them' : 'it'} below.`;
+    if (pct === 0) return `Buy ${n} ${p.name}s get 1 FREE — add ${needed} more to start!`;
+    if (pct < 50) return `${pct}% of the way to a free ${p.name} — add ${needed} more!`;
+    if (pct < 75) return `Halfway there! Add ${needed} more ${p.name} to get 1 FREE.`;
+    return `So close! Add just ${needed} more ${p.name} to get 1 FREE!`;
+  };
 
   return (
     <section className="container">
@@ -375,7 +428,9 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
                   <h3>{item.name}</h3>
                   {item.variant && <span className="cart-item-variant">{item.variant}</span>}
                   {item.notes && <span className="cart-item-notes">{item.notes}</span>}
-                  <span className="text-muted">${(item.price_cents / 100).toFixed(2)} each</span>
+                  {item.isFreeItem
+                    ? <span style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.8rem' }}>FREE</span>
+                    : <span className="text-muted">${(item.price_cents / 100).toFixed(2)} each</span>}
                 </div>
                 <div className="cart-item-qty">
                   <button className="btn-sm" onClick={() => onUpdateQty(item.cartId, -1)}>&#8722;</button>
@@ -383,12 +438,47 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
                   <button className="btn-sm" onClick={() => onUpdateQty(item.cartId, 1)}>+</button>
                 </div>
                 <div className="cart-item-total">
-                  ${((item.price_cents * item.qty) / 100).toFixed(2)}
+                  {item.isFreeItem
+                    ? <span style={{ color: 'var(--success)', fontWeight: 700 }}>FREE</span>
+                    : `$${((item.price_cents * item.qty) / 100).toFixed(2)}`}
                 </div>
                 <button className="btn-danger-sm" onClick={() => onRemove(item.cartId)}>Remove</button>
               </div>
             ))}
           </div>
+          {discountAlerts.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+              {discountAlerts.map(({ p, n, claimable, progress, needed, pct }) => {
+                const s = getAlertStyle(pct, claimable);
+                const fillPct = claimable > 0 ? 100 : pct;
+                return (
+                  <div key={p.id} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                      <span style={{ color: s.color, fontWeight: 600, fontSize: '0.88rem' }}>
+                        {getAlertMessage({ p, n, claimable, progress, needed, pct })}
+                      </span>
+                      <span style={{ color: s.color, fontWeight: 700, fontSize: '0.82rem', marginLeft: '1rem', whiteSpace: 'nowrap' }}>
+                        {claimable > 0 ? '🎉' : `${pct}%`}
+                      </span>
+                    </div>
+                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${fillPct}%`, background: s.bar, borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                    </div>
+                    {claimable > 0 && (
+                      <button
+                        className="btn-primary"
+                        style={{ marginTop: '0.75rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                        onClick={() => onAddToCart({ id: p.id, name: p.name, price_cents: 0, image_url: p.image_url, variant: 'Free item — note your color/variant preference in order notes', isFreeItem: true })}
+                      >
+                        + Claim Free {p.name}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="cart-summary">
             <div className="cart-total">
               <span>Total</span>
@@ -414,7 +504,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '' });
+  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '', buy_n_get_1_free: '' });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [chainMakerForm, setChainMakerForm] = useState(null);
@@ -610,7 +700,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
 
   const startEditProduct = (p) => {
     setEditingProduct(p);
-    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '' });
+    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '', buy_n_get_1_free: p.buy_n_get_1_free ? String(p.buy_n_get_1_free) : '' });
     setEditImageFile(null);
     setEditImagePreview(null);
     setShowProductForm(false);
@@ -632,7 +722,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
       const res = await fetch(`/api/products/${editingProduct.id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined }),
+        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined, buy_n_get_1_free: editProductForm.buy_n_get_1_free ? Number(editProductForm.buy_n_get_1_free) : null }),
       });
       if (res.ok) {
         addToast('Product updated');
@@ -1004,6 +1094,15 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
               )}
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+              <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Quantity Discount</h4>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Buy N, Get 1 Free</label>
+                <input type="number" min="2" value={editProductForm.buy_n_get_1_free} onChange={e => setEditProductForm({ ...editProductForm, buy_n_get_1_free: e.target.value })} placeholder="e.g. 4 — leave blank to disable" />
+                <small className="text-muted">Customers who add this many to cart are offered 1 free. A progress bar appears in their cart.</small>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
               <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Color Selector Labels</h4>
               <div className="form-row">
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1194,13 +1293,17 @@ export default function App() {
   }, [addToast]);
 
   const addToCart = (item) => {
-    const cartId = `${item.id}_${item.variantId || ''}_${item.notes || ''}`;
+    const cartId = item.isFreeItem
+      ? `${item.id}_free_${Date.now()}`
+      : `${item.id}_${item.variantId || ''}_${item.notes || ''}`;
+    const addQty = item.qty || 1;
     setCart(prev => {
+      if (item.isFreeItem) return [...prev, { ...item, cartId, qty: 1 }];
       const existing = prev.find(i => i.cartId === cartId);
-      if (existing) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { ...item, cartId, qty: 1 }];
+      if (existing) return prev.map(i => i.cartId === cartId ? { ...i, qty: i.qty + addQty } : i);
+      return [...prev, { ...item, cartId, qty: addQty }];
     });
-    addToast(`${item.name} added to cart`);
+    addToast(item.isFreeItem ? `Free ${item.name} added!` : `${item.name} ×${addQty} added to cart`);
   };
 
   const updateQty = (cartId, delta) => {
@@ -1266,7 +1369,7 @@ export default function App() {
       <Nav page={page} setPage={setPage} cartCount={cartCount} />
       {page === PAGES.SHOP && <ShopPage products={products} onAddToCart={addToCart} siteConfig={siteConfig} />}
       {page === PAGES.CART && (
-        <CartPage cart={cart} onUpdateQty={updateQty} onRemove={removeFromCart} onCheckout={handleCheckout} onBrowse={() => setPage(PAGES.SHOP)} />
+        <CartPage cart={cart} products={products} onUpdateQty={updateQty} onRemove={removeFromCart} onCheckout={handleCheckout} onBrowse={() => setPage(PAGES.SHOP)} onAddToCart={addToCart} />
       )}
       {page === PAGES.ADMIN && (
         <AdminPage isAdmin={isAdmin} onLogin={handleLogin} onLogout={handleLogout} filaments={filaments} products={products} siteConfig={siteConfig} onRefresh={loadData} addToast={addToast} />
