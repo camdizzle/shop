@@ -72,7 +72,7 @@ export function getProducts() {
   return data.products.map((p) => {
     const variants = data.variants.filter((v) => v.product_id === p.id).map((v) => {
       const filament = data.filaments.find((f) => f.id === v.filament_id);
-      return { ...v, material: filament?.material || 'Unknown', color: filament?.color || 'Unknown' };
+      return { ...v, material: filament?.material || 'Unknown', color: filament?.color || 'Unknown', color_hex: filament?.color_hex || null };
     });
     return { ...p, variants, price_cents: variants[0]?.price_cents || 0, material: variants[0]?.material || 'Unknown', color: variants[0]?.color || 'Unknown' };
   }).sort((a, b) => b.id - a.id);

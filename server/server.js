@@ -116,8 +116,8 @@ app.get('/api/filaments', (_req, res) => {
 });
 
 app.post('/api/filaments', auth, (req, res) => {
-  const { material, color, sku, stock_grams, vendor } = req.body;
-  const row = createFilament({ material, color, sku, stock_grams, vendor });
+  const { material, color, sku, stock_grams, vendor, color_hex } = req.body;
+  const row = createFilament({ material, color, sku, stock_grams, vendor, color_hex });
   res.json({ id: row.id });
 });
 
@@ -128,8 +128,8 @@ app.delete('/api/filaments/:id', auth, (req, res) => {
 });
 
 app.put('/api/filaments/:id', auth, (req, res) => {
-  const { material, color, sku, stock_grams, vendor } = req.body;
-  const row = updateFilament(Number(req.params.id), { material, color, sku, stock_grams, vendor });
+  const { material, color, sku, stock_grams, vendor, color_hex } = req.body;
+  const row = updateFilament(Number(req.params.id), { material, color, sku, stock_grams, vendor, color_hex });
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });

@@ -64,6 +64,13 @@ function ProductModal({ product, onClose, onAddToCart }) {
       .map(v => `${v.material} / ${v.color}`))],
     [variants, selectedTheme, selectedSize]
   );
+  const colorHexMap = useMemo(() => {
+    const map = {};
+    for (const v of variants) {
+      if (v.color_hex) map[`${v.material} / ${v.color}`] = v.color_hex;
+    }
+    return map;
+  }, [variants]);
 
   // Cascade: changing theme resets size → material
   const handleThemeChange = (newTheme) => {
@@ -95,9 +102,10 @@ function ProductModal({ product, onClose, onAddToCart }) {
   const price = selectedVariant?.price_cents || product.price_cents || 0;
 
   const handleAdd = () => {
+    const colorName = m => m.split(' / ')[1] || m;
     const colorPart = product.color_label_2
-      ? [`${product.color_label_1 || 'Color 1'}: ${selectedMaterial}`, `${product.color_label_2}: ${selectedColor2}`].join(', ')
-      : selectedMaterial;
+      ? [`${product.color_label_1 || 'Color 1'}: ${colorName(selectedMaterial)}`, `${product.color_label_2}: ${colorName(selectedColor2)}`].join(', ')
+      : colorName(selectedMaterial);
     const variantLabel = [
       selectedTheme !== 'Standard' && selectedTheme,
       selectedSize !== 'Standard' && selectedSize,
@@ -150,14 +158,20 @@ function ProductModal({ product, onClose, onAddToCart }) {
               materialsForSelection.length > 1 ? (
                 <div className="form-group">
                   <label>{product.color_label_1 || 'Color'}</label>
-                  <select value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
-                    {materialsForSelection.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select style={{ flex: 1 }} value={selectedMaterial} onChange={e => setSelectedMaterial(e.target.value)}>
+                      {materialsForSelection.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
+                    </select>
+                    {colorHexMap[selectedMaterial] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedMaterial], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                  </div>
                 </div>
               ) : materialsForSelection.length === 1 && (
                 <div className="form-group">
                   <label>{product.color_label_1 || 'Color'}</label>
-                  <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.9rem', padding: '0.5rem 0' }}>{materialsForSelection[0]}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    {colorHexMap[materialsForSelection[0]] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[materialsForSelection[0]], border: '1px solid rgba(255,255,255,0.15)' }} />}
+                    <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(materialsForSelection[0] || '').split(' / ')[1] || materialsForSelection[0]}</span>
+                  </div>
                 </div>
               )
             ) : (
@@ -166,7 +180,10 @@ function ProductModal({ product, onClose, onAddToCart }) {
                   <label>Included Colors</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', padding: '0.4rem 0' }}>
                     {materialsForSelection.map(m => (
-                      <span key={m} style={{ background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.8rem', color: 'var(--text)' }}>{m}</span>
+                      <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'var(--surface-3)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.8rem', color: 'var(--text)' }}>
+                        {colorHexMap[m] && <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '2px', background: colorHexMap[m], flexShrink: 0 }} />}
+                        {m.split(' / ')[1] || m}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -175,9 +192,12 @@ function ProductModal({ product, onClose, onAddToCart }) {
             {product.color_label_2 && allProductColors.length > 0 && (
               <div className="form-group">
                 <label>{product.color_label_2}</label>
-                <select value={selectedColor2} onChange={e => setSelectedColor2(e.target.value)}>
-                  {allProductColors.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <select style={{ flex: 1 }} value={selectedColor2} onChange={e => setSelectedColor2(e.target.value)}>
+                    {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
+                  </select>
+                  {colorHexMap[selectedColor2] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor2], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                </div>
               </div>
             )}
 
@@ -368,7 +388,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
 
 function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+  const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '', color_hex: '' });
   const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -409,7 +429,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       });
       if (res.ok) {
         addToast('Filament added');
-        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '', color_hex: '' });
         setShowFilamentForm(false);
         onRefresh();
       } else addToast('Failed to add filament', 'error');
@@ -573,7 +593,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       });
       if (res.ok) {
         addToast('Filament updated');
-        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
+        setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '', color_hex: '' });
         setEditingFilamentId(null);
         setShowFilamentForm(false);
         onRefresh();
@@ -630,8 +650,15 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 <input value={filamentForm.material} onChange={e => setFilamentForm({ ...filamentForm, material: e.target.value })} required placeholder="e.g. PLA, PETG, ABS" />
               </div>
               <div className="form-group">
-                <label>Color</label>
+                <label>Color Name</label>
                 <input value={filamentForm.color} onChange={e => setFilamentForm({ ...filamentForm, color: e.target.value })} required placeholder="e.g. Midnight Black" />
+              </div>
+              <div className="form-group">
+                <label>Swatch Color</label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input type="color" value={filamentForm.color_hex || '#888888'} onChange={e => setFilamentForm({ ...filamentForm, color_hex: e.target.value })} style={{ width: '42px', height: '38px', padding: '2px 3px', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', background: 'none', flexShrink: 0 }} />
+                  <input value={filamentForm.color_hex} onChange={e => setFilamentForm({ ...filamentForm, color_hex: e.target.value })} placeholder="#rrggbb (optional)" />
+                </div>
               </div>
               <div className="form-group">
                 <label>SKU</label>
@@ -659,14 +686,19 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                 {filaments.map(f => (
                   <tr key={f.id}>
                     <td>{f.material}</td>
-                    <td>{f.color}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {f.color_hex && <span style={{ display: 'inline-block', width: '16px', height: '16px', borderRadius: '3px', background: f.color_hex, border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                        {f.color}
+                      </div>
+                    </td>
                     <td><code>{f.sku}</code></td>
                     <td>{f.vendor || '—'}</td>
                     <td>{f.stock_grams}g</td>
                     <td style={{ display: 'flex', gap: '0.5rem' }}>
                       <button className="btn-sm" onClick={() => {
                         setEditingFilamentId(f.id);
-                        setFilamentForm({ material: f.material, color: f.color, sku: f.sku, stock_grams: String(f.stock_grams), vendor: f.vendor || '' });
+                        setFilamentForm({ material: f.material, color: f.color, sku: f.sku, stock_grams: String(f.stock_grams), vendor: f.vendor || '', color_hex: f.color_hex || '' });
                         setShowFilamentForm(true);
                       }}>Edit</button>
                       <button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button>
@@ -761,6 +793,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
                         setProductForm({ ...productForm, filament_ids: next });
                       }}
                     />
+                    {f.color_hex && <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '3px', background: f.color_hex, border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
                     <span>{f.material} — {f.color} ({f.vendor || 'Unknown vendor'})</span>
                   </label>
                 ))}
