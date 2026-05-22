@@ -118,6 +118,24 @@ export function deleteProductTheme(productId, theme) {
   return true;
 }
 
+export function updateProductTheme(productId, oldTheme, updates) {
+  const data = load();
+  let changed = false;
+  data.variants = data.variants.map((v) => {
+    if (v.product_id !== productId || v.theme !== oldTheme) return v;
+    changed = true;
+    return {
+      ...v,
+      ...(updates.theme !== undefined ? { theme: updates.theme } : {}),
+      ...(updates.price_cents !== undefined ? { price_cents: updates.price_cents } : {}),
+      ...(updates.image_url ? { image_url: updates.image_url } : {}),
+    };
+  });
+  if (!changed) return false;
+  save(data);
+  return true;
+}
+
 export function updateProduct(id, input) {
   const data = load();
   const idx = data.products.findIndex((p) => p.id === id);

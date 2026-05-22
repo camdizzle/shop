@@ -241,17 +241,26 @@ body {
   transition: transform 0.35s ease, box-shadow 0.35s ease;
 }
 
-/* 3-image fan */
-.product-collage.count-3 img:nth-child(1) { z-index: 3; transform: rotate(0deg); }
-.product-collage.count-3 img:nth-child(2) { z-index: 2; transform: translateX(-30%) rotate(-8deg); opacity: 0.85; }
-.product-collage.count-3 img:nth-child(3) { z-index: 1; transform: translateX(30%) rotate(8deg); opacity: 0.75; }
+/* 3-image cycling collage — each card takes a turn as the front card */
+@keyframes cardCycle {
+  0%    { transform: rotate(0deg) scale(1);                        z-index: 10; opacity: 1;    }
+  28%   { transform: rotate(0deg) scale(1);                        z-index: 10; opacity: 1;    }
+  33%   { transform: translateX(-42%) rotate(-22deg) scale(0.88);  z-index: 5;  opacity: 0.82; }
+  61%   { transform: translateX(-42%) rotate(-22deg) scale(0.88);  z-index: 5;  opacity: 0.82; }
+  66%   { transform: translateX(42%)  rotate(22deg)  scale(0.88);  z-index: 1;  opacity: 0.72; }
+  94%   { transform: translateX(42%)  rotate(22deg)  scale(0.88);  z-index: 1;  opacity: 0.72; }
+  100%  { transform: rotate(0deg) scale(1);                        z-index: 10; opacity: 1;    }
+}
+
+.product-collage.count-3 img:nth-child(1) { animation: cardCycle 12s ease-in-out infinite; }
+.product-collage.count-3 img:nth-child(2) { animation: cardCycle 12s ease-in-out infinite; animation-delay: -4s; }
+.product-collage.count-3 img:nth-child(3) { animation: cardCycle 12s ease-in-out infinite; animation-delay: -8s; }
 
 /* 2-image fan */
 .product-collage.count-2 img:nth-child(1) { z-index: 2; transform: translateX(-10%) rotate(-5deg); }
 .product-collage.count-2 img:nth-child(2) { z-index: 1; transform: translateX(10%) rotate(5deg); opacity: 0.82; }
 
-/* Hover: lift and scale front image */
-.product-card:hover .product-collage.count-3 img:nth-child(1) { transform: rotate(0deg) scale(1.06); box-shadow: 0 10px 32px rgba(0, 0, 0, 0.6); }
+/* Hover: lift and scale (2-image only; 3-image is animated) */
 .product-card:hover .product-collage.count-2 img:nth-child(1) { transform: translateX(-10%) rotate(-5deg) scale(1.06); box-shadow: 0 10px 32px rgba(0, 0, 0, 0.6); }
 
 .product-image-wrap.no-image {
