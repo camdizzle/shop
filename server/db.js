@@ -3,7 +3,14 @@ import path from 'node:path';
 
 const dataPath = path.resolve('shop-data.json');
 
-const defaultData = { filaments: [], products: [], variants: [], counters: { filament: 1, product: 1, variant: 1 } };
+const defaultChainMaker = {
+  name: 'Design Custom Hype Chains',
+  description: 'Build your own custom chain with your preferred style and details.',
+  image_url: 'https://designer.camwow.tv/og-image.png',
+  url: 'https://designer.camwow.tv',
+};
+
+const defaultData = { filaments: [], products: [], variants: [], counters: { filament: 1, product: 1, variant: 1 }, site_config: { chain_maker: defaultChainMaker } };
 
 function load() {
   if (!fs.existsSync(dataPath)) {
@@ -31,11 +38,25 @@ function migrate(data) {
     }
   }
   if (!data.counters.variant) data.counters.variant = (data.variants.at(-1)?.id || 0) + 1;
+  if (!data.site_config) data.site_config = { chain_maker: defaultChainMaker };
+  if (!data.site_config.chain_maker) data.site_config.chain_maker = defaultChainMaker;
   return data;
 }
 
 function save(data) {
   fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+}
+
+export function getSiteConfig() {
+  const data = load();
+  return data.site_config;
+}
+
+export function updateSiteConfig(updates) {
+  const data = load();
+  data.site_config = { ...data.site_config, ...updates };
+  save(data);
+  return data.site_config;
 }
 
 export function getFilaments() {

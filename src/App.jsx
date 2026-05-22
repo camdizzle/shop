@@ -220,7 +220,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
   );
 }
 
-function ShopPage({ products, onAddToCart }) {
+function ShopPage({ products, onAddToCart, siteConfig }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
 
   // Build per-product collage image lists once per data load (stable random order per refresh)
@@ -243,11 +243,13 @@ function ShopPage({ products, onAddToCart }) {
     return result;
   }, [products]);
 
+  const cm = siteConfig?.chain_maker || {};
   const chainMakerTile = {
     id: 'chain-maker-tile',
-    name: 'Design Custom Hype Chains',
-    description: 'Build your own custom chain with your preferred style and details.',
-    image_url: 'https://designer.camwow.tv/og-image.png',
+    name: cm.name || 'Design Custom Hype Chains',
+    description: cm.description || 'Build your own custom chain with your preferred style and details.',
+    image_url: cm.image_url || 'https://designer.camwow.tv/og-image.png',
+    external_url: cm.url || 'https://designer.camwow.tv',
     material: 'Custom',
     color: 'Any',
     isExternal: true,
@@ -306,7 +308,7 @@ function ShopPage({ products, onAddToCart }) {
                   <p className="product-desc">{p.description?.length > 110 ? `${p.description.slice(0, 110)}...` : p.description}</p>
                   <div className="product-footer">
                     {p.isExternal ? (
-                      <a href="https://designer.camwow.tv" target="_blank" rel="noopener noreferrer" className="btn-primary">
+                      <a href={p.external_url || 'https://designer.camwow.tv'} target="_blank" rel="noopener noreferrer" className="btn-primary">
                         Open Designer
                       </a>
                     ) : (
@@ -386,7 +388,7 @@ function CartPage({ cart, onUpdateQty, onRemove, onCheckout, onBrowse }) {
   );
 }
 
-function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh, addToast }) {
+function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig, onRefresh, addToast }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [filamentForm, setFilamentForm] = useState({ material: '', color: '', sku: '', stock_grams: '', vendor: '', color_hex: '' });
   const [productForm, setProductForm] = useState({ name: '', description: '', price_cents: '', filament_ids: [], themes: '', sizes: '', parent_product_id: '', slug: '' });
@@ -400,6 +402,9 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
   const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '' });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
+  const [chainMakerForm, setChainMakerForm] = useState(null);
+  const [chainMakerImageFile, setChainMakerImageFile] = useState(null);
+  const [chainMakerImagePreview, setChainMakerImagePreview] = useState(null);
   const [editingThemeName, setEditingThemeName] = useState(null);
   const [editThemeForm, setEditThemeForm] = useState({ theme: '', price_cents: '', image_url: '' });
   const [editThemeImageFile, setEditThemeImageFile] = useState(null);
@@ -499,6 +504,33 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
         onRefresh();
       } else addToast('Failed to delete theme', 'error');
     } catch { addToast('Failed to delete theme', 'error'); }
+  };
+
+  const handleSaveChainMaker = async () => {
+    setUploading(true);
+    try {
+      let image_url = chainMakerForm.image_url;
+      if (chainMakerImageFile) {
+        const form = new FormData();
+        form.append('image', chainMakerImageFile);
+        const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+        if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+        image_url = (await uploadRes.json()).url;
+      }
+      const res = await fetch('/api/config', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chain_maker: { ...chainMakerForm, image_url } }),
+      });
+      if (res.ok) {
+        addToast('Chain maker tile updated');
+        setChainMakerForm(null);
+        setChainMakerImageFile(null);
+        setChainMakerImagePreview(null);
+        onRefresh();
+      } else addToast('Failed to save', 'error');
+    } catch { addToast('Failed to save', 'error'); }
+    setUploading(false);
   };
 
   const handleUpdateTheme = async () => {
@@ -627,6 +659,60 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, onRefresh,
       <div className="admin-header">
         <h2 className="section-title">Admin Dashboard</h2>
         <button className="btn-outline" onClick={onLogout}>Logout</button>
+      </div>
+
+      <div className="admin-section">
+        <div className="admin-section-header">
+          <h3>Site Settings</h3>
+          <button className="btn-primary" onClick={() => {
+            if (chainMakerForm) {
+              setChainMakerForm(null);
+              setChainMakerImageFile(null);
+              setChainMakerImagePreview(null);
+            } else {
+              const cm = siteConfig?.chain_maker || {};
+              setChainMakerForm({ name: cm.name || '', description: cm.description || '', image_url: cm.image_url || '', url: cm.url || '' });
+              setChainMakerImageFile(null);
+              setChainMakerImagePreview(null);
+            }
+          }}>{chainMakerForm ? 'Cancel' : 'Edit Chain Maker Tile'}</button>
+        </div>
+        {chainMakerForm && (
+          <div className="admin-form">
+            <h4 style={{ color: 'var(--text)', marginBottom: '1rem', fontSize: '0.95rem' }}>Chain Maker Tile</h4>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Title</label>
+                <input value={chainMakerForm.name} onChange={e => setChainMakerForm({ ...chainMakerForm, name: e.target.value })} placeholder="Design Custom Hype Chains" />
+              </div>
+              <div className="form-group">
+                <label>Link URL</label>
+                <input value={chainMakerForm.url} onChange={e => setChainMakerForm({ ...chainMakerForm, url: e.target.value })} placeholder="https://designer.camwow.tv" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Description</label>
+              <textarea value={chainMakerForm.description} onChange={e => setChainMakerForm({ ...chainMakerForm, description: e.target.value })} rows={2} placeholder="Build your own custom chain..." />
+            </div>
+            <div className="form-group">
+              <label>Tile Image</label>
+              <input type="file" accept="image/*" onChange={e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                setChainMakerImageFile(file);
+                const reader = new FileReader();
+                reader.onload = ev => setChainMakerImagePreview(ev.target.result);
+                reader.readAsDataURL(file);
+              }} />
+              {(chainMakerImagePreview || chainMakerForm.image_url) && (
+                <img src={chainMakerImagePreview || chainMakerForm.image_url} alt="Preview" className="image-preview" />
+              )}
+            </div>
+            <button type="button" className="btn-primary" disabled={uploading} onClick={handleSaveChainMaker}>
+              {uploading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="admin-section">
@@ -962,6 +1048,7 @@ export default function App() {
   const [page, setPage] = useState(PAGES.SHOP);
   const [products, setProducts] = useState([]);
   const [filaments, setFilaments] = useState([]);
+  const [siteConfig, setSiteConfig] = useState({});
   const [cart, setCart] = useState(() => {
     try { return JSON.parse(localStorage.getItem('c2-cart')) || []; }
     catch { return []; }
@@ -979,12 +1066,14 @@ export default function App() {
 
   const loadData = useCallback(async () => {
     try {
-      const [prods, fils] = await Promise.all([
+      const [prods, fils, cfg] = await Promise.all([
         fetch('/api/products').then(r => r.json()),
         fetch('/api/filaments').then(r => r.json()),
+        fetch('/api/config').then(r => r.json()),
       ]);
       setProducts(prods);
       setFilaments(fils);
+      setSiteConfig(cfg);
     } catch {
       addToast('Failed to load data', 'error');
     }
@@ -1079,12 +1168,12 @@ export default function App() {
     <>
       <Toasts toasts={toasts} />
       <Nav page={page} setPage={setPage} cartCount={cartCount} />
-      {page === PAGES.SHOP && <ShopPage products={products} onAddToCart={addToCart} />}
+      {page === PAGES.SHOP && <ShopPage products={products} onAddToCart={addToCart} siteConfig={siteConfig} />}
       {page === PAGES.CART && (
         <CartPage cart={cart} onUpdateQty={updateQty} onRemove={removeFromCart} onCheckout={handleCheckout} onBrowse={() => setPage(PAGES.SHOP)} />
       )}
       {page === PAGES.ADMIN && (
-        <AdminPage isAdmin={isAdmin} onLogin={handleLogin} onLogout={handleLogout} filaments={filaments} products={products} onRefresh={loadData} addToast={addToast} />
+        <AdminPage isAdmin={isAdmin} onLogin={handleLogin} onLogout={handleLogout} filaments={filaments} products={products} siteConfig={siteConfig} onRefresh={loadData} addToast={addToast} />
       )}
     </>
   );

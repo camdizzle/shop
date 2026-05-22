@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, getFilaments, getProducts, updateFilament, updateProduct, updateProductTheme } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductTheme, updateSiteConfig } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,6 +109,16 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/admin/logout', (_req, res) => {
   res.clearCookie('admin_token');
   res.json({ ok: true });
+});
+
+app.get('/api/config', (_req, res) => {
+  res.json(getSiteConfig());
+});
+
+app.put('/api/config', auth, (req, res) => {
+  const { chain_maker } = req.body;
+  const config = updateSiteConfig({ chain_maker });
+  res.json(config);
 });
 
 app.get('/api/filaments', (_req, res) => {
