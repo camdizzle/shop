@@ -366,7 +366,7 @@ function ShopPage({ products, onAddToCart, siteConfig }) {
   );
 }
 
-function CartPage({ cart, products, onUpdateQty, onRemove, onCheckout, onBrowse, onAddToCart }) {
+function CartPage({ cart, products, onUpdateQty, onRemove, onUpdateNotes, onCheckout, onBrowse, onAddToCart }) {
   const total = cart.reduce((sum, i) => sum + i.price_cents * i.qty, 0);
 
   // Compute buy-N-get-1-free progress for each qualifying product
@@ -427,10 +427,15 @@ function CartPage({ cart, products, onUpdateQty, onRemove, onCheckout, onBrowse,
                 <div className="cart-item-details">
                   <h3>{item.name}</h3>
                   {item.variant && <span className="cart-item-variant">{item.variant}</span>}
-                  {item.notes && <span className="cart-item-notes">{item.notes}</span>}
                   {item.isFreeItem
                     ? <span style={{ color: 'var(--success)', fontWeight: 700, fontSize: '0.8rem' }}>FREE</span>
                     : <span className="text-muted">${(item.price_cents / 100).toFixed(2)} each</span>}
+                  <input
+                    className="cart-item-note-input"
+                    value={item.notes || ''}
+                    onChange={e => onUpdateNotes(item.cartId, e.target.value)}
+                    placeholder={item.isFreeItem ? 'Note your color/variant preference…' : 'Add order notes (optional)…'}
+                  />
                 </div>
                 <div className="cart-item-qty">
                   <button className="btn-sm" onClick={() => onUpdateQty(item.cartId, -1)}>&#8722;</button>
@@ -468,7 +473,7 @@ function CartPage({ cart, products, onUpdateQty, onRemove, onCheckout, onBrowse,
                       <button
                         className="btn-primary"
                         style={{ marginTop: '0.75rem', fontSize: '0.85rem', background: 'linear-gradient(135deg, #10b981, #059669)' }}
-                        onClick={() => onAddToCart({ id: p.id, name: p.name, price_cents: 0, image_url: p.image_url, variant: 'Free item — note your color/variant preference in order notes', isFreeItem: true })}
+                        onClick={() => onAddToCart({ id: p.id, name: p.name, price_cents: 0, image_url: p.image_url, variant: 'Free item', isFreeItem: true })}
                       >
                         + Claim Free {p.name}
                       </button>
@@ -1316,6 +1321,8 @@ export default function App() {
 
   const removeFromCart = (cartId) => setCart(prev => prev.filter(i => i.cartId !== cartId));
 
+  const updateNotes = (cartId, notes) => setCart(prev => prev.map(i => i.cartId === cartId ? { ...i, notes } : i));
+
   const cartCount = cart.reduce((a, b) => a + b.qty, 0);
 
   const handleCheckout = async () => {
@@ -1369,7 +1376,7 @@ export default function App() {
       <Nav page={page} setPage={setPage} cartCount={cartCount} />
       {page === PAGES.SHOP && <ShopPage products={products} onAddToCart={addToCart} siteConfig={siteConfig} />}
       {page === PAGES.CART && (
-        <CartPage cart={cart} products={products} onUpdateQty={updateQty} onRemove={removeFromCart} onCheckout={handleCheckout} onBrowse={() => setPage(PAGES.SHOP)} onAddToCart={addToCart} />
+        <CartPage cart={cart} products={products} onUpdateQty={updateQty} onRemove={removeFromCart} onUpdateNotes={updateNotes} onCheckout={handleCheckout} onBrowse={() => setPage(PAGES.SHOP)} onAddToCart={addToCart} />
       )}
       {page === PAGES.ADMIN && (
         <AdminPage isAdmin={isAdmin} onLogin={handleLogin} onLogout={handleLogout} filaments={filaments} products={products} siteConfig={siteConfig} onRefresh={loadData} addToast={addToast} />

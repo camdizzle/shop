@@ -508,6 +508,29 @@ body {
   margin-bottom: 0.15rem;
 }
 
+.cart-item-note-input {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.cart-item-note-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.cart-item-note-input::placeholder { color: var(--text-muted); }
+
 .cart-item-qty {
   display: flex;
   align-items: center;
