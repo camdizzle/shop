@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -177,15 +177,33 @@ app.post('/api/products', auth, (req, res) => {
 });
 
 app.put('/api/products/:id', auth, async (req, res) => {
-  const { name, description, image_url, slug, color_label_1, color_label_2, color_label_3, buy_n_get_1_free } = req.body;
-  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug, color_label_1, color_label_2, color_label_3, buy_n_get_1_free: buy_n_get_1_free || null });
+  const { name, description, image_url, slug, color_label_1, color_label_2, color_label_3, buy_n_get_1_free, size_label } = req.body;
+  const row = updateProduct(Number(req.params.id), { name, description, image_url, slug, color_label_1, color_label_2, color_label_3, buy_n_get_1_free: buy_n_get_1_free || null, size_label: size_label || null });
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });
 
 app.put('/api/products/:id/sizes/:size', auth, (req, res) => {
-  const { price_cents } = req.body;
-  const ok = updateProductSize(Number(req.params.id), req.params.size, { price_cents: Number(price_cents) });
+  const { price_cents, size } = req.body;
+  const updates = {
+    ...(size ? { size } : {}),
+    ...(price_cents !== undefined ? { price_cents: Number(price_cents) } : {}),
+  };
+  const ok = updateProductSize(Number(req.params.id), req.params.size, updates);
+  if (!ok) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+app.delete('/api/products/:id/sizes/:size', auth, (req, res) => {
+  const ok = deleteProductSize(Number(req.params.id), req.params.size);
+  if (ok) return res.json({ ok: true });
+  res.status(404).json({ error: 'Not found' });
+});
+
+app.post('/api/products/:id/sizes', auth, (req, res) => {
+  const { size, price_cents } = req.body;
+  if (!size || price_cents === undefined) return res.status(400).json({ error: 'Size name and price required' });
+  const ok = addProductSize(Number(req.params.id), size, Number(price_cents));
   if (!ok) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });

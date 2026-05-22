@@ -160,15 +160,46 @@ export function updateProductTheme(productId, oldTheme, updates) {
   return true;
 }
 
-export function updateProductSize(productId, size, { price_cents }) {
+export function updateProductSize(productId, oldSize, updates) {
   const data = load();
   let changed = false;
   data.variants = data.variants.map((v) => {
-    if (v.product_id !== productId || v.size !== size) return v;
+    if (v.product_id !== productId || v.size !== oldSize) return v;
     changed = true;
-    return { ...v, price_cents };
+    return {
+      ...v,
+      ...(updates.size !== undefined ? { size: updates.size } : {}),
+      ...(updates.price_cents !== undefined ? { price_cents: updates.price_cents } : {}),
+    };
   });
   if (!changed) return false;
+  save(data);
+  return true;
+}
+
+export function deleteProductSize(productId, size) {
+  const data = load();
+  const before = data.variants.length;
+  data.variants = data.variants.filter((v) => !(v.product_id === productId && v.size === size));
+  if (data.variants.length === before) return false;
+  save(data);
+  return true;
+}
+
+export function addProductSize(productId, size, price_cents) {
+  const data = load();
+  const existing = data.variants.filter(v => v.product_id === productId);
+  if (existing.length === 0) return false;
+  const seen = new Set();
+  const newVariants = [];
+  for (const v of existing) {
+    const key = `${v.theme}__${v.filament_id}__${v.style || 'Standard'}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      newVariants.push({ id: data.counters.variant++, product_id: productId, filament_id: v.filament_id, theme: v.theme, size, style: v.style || 'Standard', price_cents });
+    }
+  }
+  data.variants.push(...newVariants);
   save(data);
   return true;
 }
@@ -177,7 +208,7 @@ export function updateProduct(id, input) {
   const data = load();
   const idx = data.products.findIndex((p) => p.id === id);
   if (idx === -1) return null;
-  const allowed = ['name', 'description', 'image_url', 'slug', 'color_label_1', 'color_label_2', 'color_label_3', 'buy_n_get_1_free'];
+  const allowed = ['name', 'description', 'image_url', 'slug', 'color_label_1', 'color_label_2', 'color_label_3', 'buy_n_get_1_free', 'size_label'];
   const update = Object.fromEntries(Object.entries(input).filter(([k]) => allowed.includes(k)));
   data.products[idx] = { ...data.products[idx], ...update };
   save(data);

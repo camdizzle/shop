@@ -154,7 +154,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
             )}
             {sizesForTheme.length > 1 && (
               <div className="form-group">
-                <label>Size</label>
+                <label>{product.size_label || 'Size'}</label>
                 <select value={selectedSize} onChange={e => handleSizeChange(e.target.value)}>
                   {sizesForTheme.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
@@ -509,7 +509,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '', buy_n_get_1_free: '' });
+  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '', buy_n_get_1_free: '', size_label: '' });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [chainMakerForm, setChainMakerForm] = useState(null);
@@ -520,7 +520,9 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [editThemeImageFile, setEditThemeImageFile] = useState(null);
   const [editThemeImagePreview, setEditThemeImagePreview] = useState(null);
   const [editingSizeName, setEditingSizeName] = useState(null);
-  const [editSizePrice, setEditSizePrice] = useState('');
+  const [editSizeForm, setEditSizeForm] = useState({ size: '', price_cents: '' });
+  const [showAddSizeForm, setShowAddSizeForm] = useState(false);
+  const [addSizeForm, setAddSizeForm] = useState({ size: '', price_cents: '' });
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -686,26 +688,72 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
 
   const handleUpdateSize = async () => {
     try {
+      const updates = {};
+      if (editSizeForm.size && editSizeForm.size !== editingSizeName) updates.size = editSizeForm.size.trim();
+      if (editSizeForm.price_cents) updates.price_cents = Number(editSizeForm.price_cents);
       const res = await fetch(`/api/products/${editingProduct.id}/sizes/${encodeURIComponent(editingSizeName)}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price_cents: Number(editSizePrice) }),
+        body: JSON.stringify(updates),
       });
       if (res.ok) {
-        addToast('Size price updated');
+        addToast('Size updated');
+        const newName = updates.size || editingSizeName;
         setEditingProduct(prev => prev ? {
           ...prev,
-          variants: prev.variants.map(v => v.size !== editingSizeName ? v : { ...v, price_cents: Number(editSizePrice) }),
+          variants: prev.variants.map(v => v.size !== editingSizeName ? v : {
+            ...v,
+            size: newName,
+            ...(updates.price_cents !== undefined ? { price_cents: updates.price_cents } : {}),
+          }),
         } : null);
         setEditingSizeName(null);
         onRefresh();
-      } else addToast('Failed to update size price', 'error');
-    } catch { addToast('Failed to update size price', 'error'); }
+      } else addToast('Failed to update size', 'error');
+    } catch { addToast('Failed to update size', 'error'); }
+  };
+
+  const handleDeleteSize = async (size) => {
+    try {
+      const res = await fetch(`/api/products/${editingProduct.id}/sizes/${encodeURIComponent(size)}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        addToast(`Size "${size}" deleted`);
+        setEditingProduct(prev => prev ? { ...prev, variants: prev.variants.filter(v => v.size !== size) } : null);
+        onRefresh();
+      } else addToast('Failed to delete size', 'error');
+    } catch { addToast('Failed to delete size', 'error'); }
+  };
+
+  const handleAddSize = async () => {
+    if (!addSizeForm.size.trim() || !addSizeForm.price_cents) { addToast('Size name and price are required', 'warning'); return; }
+    try {
+      const res = await fetch(`/api/products/${editingProduct.id}/sizes`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size: addSizeForm.size.trim(), price_cents: Number(addSizeForm.price_cents) }),
+      });
+      if (res.ok) {
+        addToast(`Size "${addSizeForm.size}" added`);
+        const seen = new Set();
+        const newVariants = [];
+        for (const v of (editingProduct.variants || [])) {
+          const key = `${v.theme}__${v.filament_id}__${v.style || 'Standard'}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            newVariants.push({ id: Date.now() + newVariants.length, product_id: editingProduct.id, filament_id: v.filament_id, theme: v.theme, size: addSizeForm.size.trim(), style: v.style || 'Standard', price_cents: Number(addSizeForm.price_cents), material: v.material, color: v.color, color_hex: v.color_hex });
+          }
+        }
+        setEditingProduct(prev => prev ? { ...prev, variants: [...prev.variants, ...newVariants] } : null);
+        setShowAddSizeForm(false);
+        setAddSizeForm({ size: '', price_cents: '' });
+        onRefresh();
+      } else addToast('Failed to add size', 'error');
+    } catch { addToast('Failed to add size', 'error'); }
   };
 
   const startEditProduct = (p) => {
     setEditingProduct(p);
-    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '', buy_n_get_1_free: p.buy_n_get_1_free ? String(p.buy_n_get_1_free) : '' });
+    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '', buy_n_get_1_free: p.buy_n_get_1_free ? String(p.buy_n_get_1_free) : '', size_label: p.size_label || '' });
     setEditImageFile(null);
     setEditImagePreview(null);
     setShowProductForm(false);
@@ -727,7 +775,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
       const res = await fetch(`/api/products/${editingProduct.id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined, buy_n_get_1_free: editProductForm.buy_n_get_1_free ? Number(editProductForm.buy_n_get_1_free) : null }),
+        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined, buy_n_get_1_free: editProductForm.buy_n_get_1_free ? Number(editProductForm.buy_n_get_1_free) : null, size_label: editProductForm.size_label || undefined }),
       });
       if (res.ok) {
         addToast('Product updated');
@@ -1128,15 +1176,41 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
               </div>
             </div>
 
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
+              <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Size / Options Selector</h4>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Selector Label</label>
+                <input value={editProductForm.size_label} onChange={e => setEditProductForm({ ...editProductForm, size_label: e.target.value })} placeholder="Size" />
+                <small className="text-muted">Label shown above the size dropdown. Default: "Size" — change to "Options", "Configuration", etc.</small>
+              </div>
+            </div>
+
             <button type="submit" className="btn-primary" disabled={uploading}>{uploading ? 'Saving...' : 'Save Changes'}</button>
 
             {(() => {
-              const sizes = [...new Set((editingProduct.variants || []).map(v => v.size))].filter(s => s !== 'Standard');
-              if (sizes.length === 0) return null;
+              const sizes = [...new Set((editingProduct.variants || []).map(v => v.size))];
               return (
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
-                  <h4 style={{ color: 'var(--text)', marginBottom: '0.75rem' }}>Manage Size Pricing</h4>
-                  {sizes.map(size => {
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <h4 style={{ color: 'var(--text)', margin: 0 }}>Manage Sizes</h4>
+                    <button type="button" className="btn-sm" style={{ width: 'auto', padding: '0.3rem 0.8rem', fontSize: '0.78rem' }} onClick={() => { setShowAddSizeForm(s => !s); setAddSizeForm({ size: '', price_cents: '' }); }}>
+                      {showAddSizeForm ? 'Cancel' : '+ Add Size'}
+                    </button>
+                  </div>
+                  {showAddSizeForm && (
+                    <div style={{ border: '1px solid var(--accent)', borderRadius: '8px', padding: '0.75rem', background: 'var(--surface-1)', marginBottom: '0.75rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                      <div className="form-group" style={{ marginBottom: 0, flex: '1 1 120px' }}>
+                        <label>Size Name</label>
+                        <input value={addSizeForm.size} onChange={e => setAddSizeForm({ ...addSizeForm, size: e.target.value })} placeholder="e.g. 20oz" />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0, flex: '1 1 120px' }}>
+                        <label>Price (cents)</label>
+                        <input type="number" value={addSizeForm.price_cents} onChange={e => setAddSizeForm({ ...addSizeForm, price_cents: e.target.value })} placeholder="2499 = $24.99" />
+                      </div>
+                      <button type="button" className="btn-primary" style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem', whiteSpace: 'nowrap', marginBottom: 0 }} onClick={handleAddSize}>Add Size</button>
+                    </div>
+                  )}
+                  {sizes.length === 0 ? <p className="text-muted">No sizes yet.</p> : sizes.map(size => {
                     const sizeVariants = (editingProduct.variants || []).filter(v => v.size === size);
                     const currentPrice = sizeVariants[0]?.price_cents || 0;
                     const isEditing = editingSizeName === size;
@@ -1146,16 +1220,25 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                           <div style={{ flex: 1 }}>
                             <strong style={{ color: 'var(--text)' }}>{size}</strong>
                             <span className="text-muted" style={{ fontSize: '0.78rem', marginLeft: '0.5rem' }}>${(currentPrice / 100).toFixed(2)}</span>
+                            <span className="text-muted" style={{ fontSize: '0.72rem', marginLeft: '0.4rem' }}>· {sizeVariants.length} variant{sizeVariants.length !== 1 ? 's' : ''}</span>
                           </div>
                           <button type="button" className="btn-sm" style={{ width: 'auto', padding: '0.3rem 0.7rem', fontSize: '0.75rem' }} onClick={() => {
-                            if (isEditing) { setEditingSizeName(null); } else { setEditingSizeName(size); setEditSizePrice(String(currentPrice)); }
+                            if (isEditing) { setEditingSizeName(null); } else { setEditingSizeName(size); setEditSizeForm({ size, price_cents: String(currentPrice) }); }
                           }}>{isEditing ? 'Cancel' : 'Edit'}</button>
+                          <button type="button" className="btn-danger-sm" onClick={() => handleDeleteSize(size)}>Delete</button>
                         </div>
                         {isEditing && (
-                          <div style={{ border: '1px solid var(--accent)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '0.75rem', background: 'var(--surface-1)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                            <input type="number" value={editSizePrice} onChange={e => setEditSizePrice(e.target.value)} placeholder="Price in cents" style={{ flex: 1, padding: '0.6rem 0.8rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text)', fontSize: '0.9rem', fontFamily: 'inherit' }} />
-                            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{editSizePrice ? `= $${(Number(editSizePrice) / 100).toFixed(2)}` : ''}</span>
-                            <button type="button" className="btn-primary" style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem', whiteSpace: 'nowrap' }} onClick={handleUpdateSize}>Save Price</button>
+                          <div style={{ border: '1px solid var(--accent)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '0.75rem', background: 'var(--surface-1)', display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                            <div className="form-group" style={{ marginBottom: 0, flex: '1 1 120px' }}>
+                              <label>Size Name</label>
+                              <input value={editSizeForm.size} onChange={e => setEditSizeForm({ ...editSizeForm, size: e.target.value })} placeholder="Size name" />
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0, flex: '1 1 120px' }}>
+                              <label>Price (cents)</label>
+                              <input type="number" value={editSizeForm.price_cents} onChange={e => setEditSizeForm({ ...editSizeForm, price_cents: e.target.value })} placeholder="1999 = $19.99" />
+                            </div>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap', paddingBottom: '0.15rem' }}>{editSizeForm.price_cents ? `= $${(Number(editSizeForm.price_cents) / 100).toFixed(2)}` : ''}</span>
+                            <button type="button" className="btn-primary" style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem', whiteSpace: 'nowrap' }} onClick={handleUpdateSize}>Save</button>
                           </div>
                         )}
                       </div>
