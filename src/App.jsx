@@ -893,7 +893,12 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
               <textarea value={chainMakerForm.description} onChange={e => setChainMakerForm({ ...chainMakerForm, description: e.target.value })} rows={2} placeholder="Build your own custom chain..." />
             </div>
             <div className="form-group">
-              <label>Tile Image</label>
+              <label>Image URL</label>
+              <input value={chainMakerForm.image_url} onChange={e => { setChainMakerForm({ ...chainMakerForm, image_url: e.target.value }); setChainMakerImageFile(null); setChainMakerImagePreview(null); }} placeholder="https://designer.camwow.tv/og-image.png" />
+              <small className="text-muted">Recommended: paste a hosted image URL (e.g. on designer.camwow.tv). A hosted URL survives redeploys; uploaded files can be wiped on deploy.</small>
+            </div>
+            <div className="form-group">
+              <label>Or Upload an Image</label>
               <input type="file" accept="image/*" onChange={e => {
                 const file = e.target.files[0];
                 if (!file) return;
