@@ -162,7 +162,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
               </div>
             )}
             {(selectedTheme === 'Custom' || themes.length === 1) ? (
-              (materialsForSelection.length > 1 && !product.color_lock_1) ? (
+              (materialsForSelection.length > 1 && !(product.color_lock_1 && product.color_default_1)) ? (
                 <div className="form-group">
                   <label>{product.color_label_1 || 'Color'}</label>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -173,7 +173,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
                   </div>
                 </div>
               ) : materialsForSelection.length >= 1 && (() => {
-                const c1 = product.color_lock_1 ? (selectedMaterial || materialsForSelection[0]) : materialsForSelection[0];
+                const c1 = (product.color_lock_1 && product.color_default_1) ? (selectedMaterial || materialsForSelection[0]) : materialsForSelection[0];
                 return (
                 <div className="form-group">
                   <label>{product.color_label_1 || 'Color'}</label>
@@ -202,7 +202,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
             {product.color_label_2 && allProductColors.length > 0 && (
               <div className="form-group">
                 <label>{product.color_label_2}</label>
-                {product.color_lock_2 ? (
+                {(product.color_lock_2 && product.color_default_2) ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
                     {colorHexMap[selectedColor2] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[selectedColor2], border: '1px solid rgba(255,255,255,0.15)' }} />}
                     <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(selectedColor2 || '').split(' / ')[1] || selectedColor2}</span>
@@ -220,7 +220,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
             {product.color_label_3 && allProductColors.length > 0 && (
               <div className="form-group">
                 <label>{product.color_label_3}</label>
-                {product.color_lock_3 ? (
+                {(product.color_lock_3 && product.color_default_3) ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
                     {colorHexMap[selectedColor3] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[selectedColor3], border: '1px solid rgba(255,255,255,0.15)' }} />}
                     <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(selectedColor3 || '').split(' / ')[1] || selectedColor3}</span>
@@ -1184,7 +1184,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                     <input value={editProductForm[`color_label_${n}`]} onChange={e => setEditProductForm({ ...editProductForm, [`color_label_${n}`]: e.target.value })} placeholder={labelPlaceholder} />
                     <small className="text-muted">{hint}</small>
                     <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '0.25rem', display: 'block' }}>Default Color</label>
-                    <select value={editProductForm[`color_default_${n}`]} onChange={e => setEditProductForm({ ...editProductForm, [`color_default_${n}`]: e.target.value })}>
+                    <select value={editProductForm[`color_default_${n}`]} onChange={e => {
+                      const val = e.target.value;
+                      setEditProductForm({ ...editProductForm, [`color_default_${n}`]: val, ...(!val ? { [`color_lock_${n}`]: false } : {}) });
+                    }}>
                       <option value="">No default (first available)</option>
                       {editColors.map(c => <option key={c} value={c}>{colorName(c)}</option>)}
                     </select>
