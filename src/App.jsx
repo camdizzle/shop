@@ -46,11 +46,12 @@ function ProductModal({ product, onClose, onAddToCart }) {
   const _initMats = [...new Set(variants.filter(v => v.theme === _initTheme && v.size === _initSize).map(v => `${v.material} / ${v.color}`))];
   const allProductColors = [...new Set(variants.map(v => `${v.material} / ${v.color}`))];
 
+  const _pickDefault = (def, options, fallback) => (def && options.includes(def)) ? def : fallback;
   const [selectedTheme, setSelectedTheme] = useState(_initTheme);
   const [selectedSize, setSelectedSize] = useState(_initSize);
-  const [selectedMaterial, setSelectedMaterial] = useState(_initMats[0] || '');
-  const [selectedColor2, setSelectedColor2] = useState(allProductColors[0] || '');
-  const [selectedColor3, setSelectedColor3] = useState(allProductColors[0] || '');
+  const [selectedMaterial, setSelectedMaterial] = useState(_pickDefault(product.color_default_1, _initMats, _initMats[0] || ''));
+  const [selectedColor2, setSelectedColor2] = useState(_pickDefault(product.color_default_2, allProductColors, allProductColors[0] || ''));
+  const [selectedColor3, setSelectedColor3] = useState(_pickDefault(product.color_default_3, allProductColors, allProductColors[0] || ''));
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
 
@@ -81,14 +82,14 @@ function ProductModal({ product, onClose, onAddToCart }) {
     const mats = [...new Set(variants.filter(v => v.theme === newTheme && v.size === firstSize).map(v => `${v.material} / ${v.color}`))];
     setSelectedTheme(newTheme);
     setSelectedSize(firstSize);
-    setSelectedMaterial(mats[0] || '');
+    setSelectedMaterial(_pickDefault(product.color_default_1, mats, mats[0] || ''));
   };
 
   // Cascade: changing size resets material
   const handleSizeChange = (newSize) => {
     const mats = [...new Set(variants.filter(v => v.theme === selectedTheme && v.size === newSize).map(v => `${v.material} / ${v.color}`))];
     setSelectedSize(newSize);
-    setSelectedMaterial(mats[0] || '');
+    setSelectedMaterial(_pickDefault(product.color_default_1, mats, mats[0] || ''));
   };
 
   const selectedVariant = useMemo(() => {
@@ -161,7 +162,7 @@ function ProductModal({ product, onClose, onAddToCart }) {
               </div>
             )}
             {(selectedTheme === 'Custom' || themes.length === 1) ? (
-              materialsForSelection.length > 1 ? (
+              (materialsForSelection.length > 1 && !product.color_lock_1) ? (
                 <div className="form-group">
                   <label>{product.color_label_1 || 'Color'}</label>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -171,15 +172,18 @@ function ProductModal({ product, onClose, onAddToCart }) {
                     {colorHexMap[selectedMaterial] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedMaterial], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
                   </div>
                 </div>
-              ) : materialsForSelection.length === 1 && (
+              ) : materialsForSelection.length >= 1 && (() => {
+                const c1 = product.color_lock_1 ? (selectedMaterial || materialsForSelection[0]) : materialsForSelection[0];
+                return (
                 <div className="form-group">
                   <label>{product.color_label_1 || 'Color'}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
-                    {colorHexMap[materialsForSelection[0]] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[materialsForSelection[0]], border: '1px solid rgba(255,255,255,0.15)' }} />}
-                    <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(materialsForSelection[0] || '').split(' / ')[1] || materialsForSelection[0]}</span>
+                    {colorHexMap[c1] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[c1], border: '1px solid rgba(255,255,255,0.15)' }} />}
+                    <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(c1 || '').split(' / ')[1] || c1}</span>
                   </div>
                 </div>
-              )
+                );
+              })()
             ) : (
               materialsForSelection.length > 0 && (
                 <div className="form-group">
@@ -198,23 +202,37 @@ function ProductModal({ product, onClose, onAddToCart }) {
             {product.color_label_2 && allProductColors.length > 0 && (
               <div className="form-group">
                 <label>{product.color_label_2}</label>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select style={{ flex: 1 }} value={selectedColor2} onChange={e => setSelectedColor2(e.target.value)}>
-                    {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
-                  </select>
-                  {colorHexMap[selectedColor2] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor2], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
-                </div>
+                {product.color_lock_2 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    {colorHexMap[selectedColor2] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[selectedColor2], border: '1px solid rgba(255,255,255,0.15)' }} />}
+                    <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(selectedColor2 || '').split(' / ')[1] || selectedColor2}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select style={{ flex: 1 }} value={selectedColor2} onChange={e => setSelectedColor2(e.target.value)}>
+                      {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
+                    </select>
+                    {colorHexMap[selectedColor2] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor2], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                  </div>
+                )}
               </div>
             )}
             {product.color_label_3 && allProductColors.length > 0 && (
               <div className="form-group">
                 <label>{product.color_label_3}</label>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select style={{ flex: 1 }} value={selectedColor3} onChange={e => setSelectedColor3(e.target.value)}>
-                    {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
-                  </select>
-                  {colorHexMap[selectedColor3] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor3], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
-                </div>
+                {product.color_lock_3 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
+                    {colorHexMap[selectedColor3] && <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '4px', background: colorHexMap[selectedColor3], border: '1px solid rgba(255,255,255,0.15)' }} />}
+                    <span style={{ color: 'var(--text)', fontSize: '0.9rem' }}>{(selectedColor3 || '').split(' / ')[1] || selectedColor3}</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select style={{ flex: 1 }} value={selectedColor3} onChange={e => setSelectedColor3(e.target.value)}>
+                      {allProductColors.map(m => <option key={m} value={m}>{m.split(' / ')[1] || m}</option>)}
+                    </select>
+                    {colorHexMap[selectedColor3] && <span style={{ display: 'inline-block', width: '36px', height: '36px', borderRadius: '6px', background: colorHexMap[selectedColor3], border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                  </div>
+                )}
               </div>
             )}
 
@@ -509,7 +527,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '', buy_n_get_1_free: '', size_label: '' });
+  const [editProductForm, setEditProductForm] = useState({ name: '', description: '', image_url: '', color_label_1: '', color_label_2: '', color_label_3: '', buy_n_get_1_free: '', size_label: '', color_default_1: '', color_default_2: '', color_default_3: '', color_lock_1: false, color_lock_2: false, color_lock_3: false });
   const [editImageFile, setEditImageFile] = useState(null);
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [chainMakerForm, setChainMakerForm] = useState(null);
@@ -753,7 +771,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
 
   const startEditProduct = (p) => {
     setEditingProduct(p);
-    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '', buy_n_get_1_free: p.buy_n_get_1_free ? String(p.buy_n_get_1_free) : '', size_label: p.size_label || '' });
+    setEditProductForm({ name: p.name, description: p.description || '', image_url: p.image_url || '', color_label_1: p.color_label_1 || '', color_label_2: p.color_label_2 || '', color_label_3: p.color_label_3 || '', buy_n_get_1_free: p.buy_n_get_1_free ? String(p.buy_n_get_1_free) : '', size_label: p.size_label || '', color_default_1: p.color_default_1 || '', color_default_2: p.color_default_2 || '', color_default_3: p.color_default_3 || '', color_lock_1: !!p.color_lock_1, color_lock_2: !!p.color_lock_2, color_lock_3: !!p.color_lock_3 });
     setEditImageFile(null);
     setEditImagePreview(null);
     setShowProductForm(false);
@@ -775,7 +793,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
       const res = await fetch(`/api/products/${editingProduct.id}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined, buy_n_get_1_free: editProductForm.buy_n_get_1_free ? Number(editProductForm.buy_n_get_1_free) : null, size_label: editProductForm.size_label || undefined }),
+        body: JSON.stringify({ name: editProductForm.name, description: editProductForm.description, image_url, color_label_1: editProductForm.color_label_1 || undefined, color_label_2: editProductForm.color_label_2 || undefined, color_label_3: editProductForm.color_label_3 || undefined, buy_n_get_1_free: editProductForm.buy_n_get_1_free ? Number(editProductForm.buy_n_get_1_free) : null, size_label: editProductForm.size_label || undefined, color_default_1: editProductForm.color_default_1 || undefined, color_default_2: editProductForm.color_default_2 || undefined, color_default_3: editProductForm.color_default_3 || undefined, color_lock_1: editProductForm.color_lock_1, color_lock_2: editProductForm.color_lock_2, color_lock_3: editProductForm.color_lock_3 }),
       });
       if (res.ok) {
         addToast('Product updated');
@@ -1156,24 +1174,34 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
-              <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Color Selector Labels</h4>
-              <div className="form-row">
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Color 1 Label</label>
-                  <input value={editProductForm.color_label_1} onChange={e => setEditProductForm({ ...editProductForm, color_label_1: e.target.value })} placeholder="Color" />
-                  <small className="text-muted">Label shown above the first color dropdown. Default: "Color"</small>
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Color 2 Label</label>
-                  <input value={editProductForm.color_label_2} onChange={e => setEditProductForm({ ...editProductForm, color_label_2: e.target.value })} placeholder="Leave blank to disable" />
-                  <small className="text-muted">Enables a second color picker. e.g. "Foreground Tone"</small>
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Color 3 Label</label>
-                  <input value={editProductForm.color_label_3} onChange={e => setEditProductForm({ ...editProductForm, color_label_3: e.target.value })} placeholder="Leave blank to disable" />
-                  <small className="text-muted">Enables a third color picker. e.g. "Accent Color"</small>
-                </div>
-              </div>
+              <h4 style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>Color Selectors</h4>
+              {(() => {
+                const editColors = [...new Set((editingProduct.variants || []).map(v => `${v.material} / ${v.color}`))];
+                const colorName = c => c.split(' / ')[1] || c;
+                const colorBlock = (n, labelPlaceholder, hint) => (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label>Color {n} Label</label>
+                    <input value={editProductForm[`color_label_${n}`]} onChange={e => setEditProductForm({ ...editProductForm, [`color_label_${n}`]: e.target.value })} placeholder={labelPlaceholder} />
+                    <small className="text-muted">{hint}</small>
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.5rem', marginBottom: '0.25rem', display: 'block' }}>Default Color</label>
+                    <select value={editProductForm[`color_default_${n}`]} onChange={e => setEditProductForm({ ...editProductForm, [`color_default_${n}`]: e.target.value })}>
+                      <option value="">No default (first available)</option>
+                      {editColors.map(c => <option key={c} value={c}>{colorName(c)}</option>)}
+                    </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text)' }}>
+                      <input type="checkbox" checked={editProductForm[`color_lock_${n}`]} disabled={!editProductForm[`color_default_${n}`]} onChange={e => setEditProductForm({ ...editProductForm, [`color_lock_${n}`]: e.target.checked })} />
+                      Lock to this color (customer can't change)
+                    </label>
+                  </div>
+                );
+                return (
+                  <div className="form-row">
+                    {colorBlock(1, 'Color', 'Label above the first color picker. Default: "Color"')}
+                    {colorBlock(2, 'Leave blank to disable', 'Enables a second color picker. e.g. "Foreground Tone"')}
+                    {colorBlock(3, 'Leave blank to disable', 'Enables a third color picker. e.g. "Accent Color"')}
+                  </div>
+                );
+              })()}
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.25rem', marginBottom: '1rem' }}>
