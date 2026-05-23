@@ -170,6 +170,36 @@ export function addProductTheme(productId, { theme, filament_ids = [], price_cen
   return true;
 }
 
+export function setProductThemeColors(productId, theme, filament_ids) {
+  const data = load();
+  const themeVariants = data.variants.filter((v) => v.product_id === productId && v.theme === theme);
+  if (themeVariants.length === 0) return false;
+  const desired = new Set(filament_ids.map(Number));
+  if (desired.size === 0) return false;
+  const current = new Set(themeVariants.map((v) => v.filament_id));
+  const sizes = [...new Set(themeVariants.map((v) => v.size))];
+  const styles = [...new Set(themeVariants.map((v) => v.style || 'Standard'))];
+  const sizePrice = {};
+  for (const v of themeVariants) {
+    if (!(v.size in sizePrice)) sizePrice[v.size] = v.price_cents;
+  }
+  const fallback = themeVariants[0]?.price_cents || 0;
+  const image_url = themeVariants.find((v) => v.image_url)?.image_url;
+  // Remove variants whose filament is no longer wanted
+  data.variants = data.variants.filter((v) => !(v.product_id === productId && v.theme === theme && !desired.has(v.filament_id)));
+  // Add variants for newly added filaments
+  for (const fid of desired) {
+    if (current.has(fid)) continue;
+    for (const size of sizes) {
+      for (const style of styles) {
+        data.variants.push({ id: data.counters.variant++, product_id: productId, filament_id: fid, theme, size, style, price_cents: sizePrice[size] !== undefined ? sizePrice[size] : fallback, ...(image_url ? { image_url } : {}) });
+      }
+    }
+  }
+  save(data);
+  return true;
+}
+
 export function updateProductTheme(productId, oldTheme, updates) {
   const data = load();
   let changed = false;

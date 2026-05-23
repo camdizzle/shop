@@ -672,6 +672,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   };
 
   const handleUpdateTheme = async () => {
+    if (!editThemeForm.filament_ids || editThemeForm.filament_ids.length === 0) {
+      addToast('A theme needs at least one color', 'warning');
+      return;
+    }
     setUploading(true);
     try {
       let image_url = editThemeForm.image_url;
@@ -683,23 +687,23 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
         const uploadData = await uploadRes.json();
         image_url = uploadData.url;
       }
+      const body = { theme: editThemeForm.theme, filament_ids: editThemeForm.filament_ids, image_url };
+      // Only override pricing when the price field was actually changed, so per-size prices survive
+      if (editThemeForm.price_cents && Number(editThemeForm.price_cents) !== editThemeForm._origPrice) {
+        body.price_cents = Number(editThemeForm.price_cents);
+      }
       const res = await fetch(`/api/products/${editingProduct.id}/themes/${encodeURIComponent(editingThemeName)}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ theme: editThemeForm.theme, price_cents: Number(editThemeForm.price_cents) || undefined, image_url }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         addToast('Theme updated');
-        const newThemeName = editThemeForm.theme;
-        setEditingProduct(prev => prev ? {
-          ...prev,
-          variants: prev.variants.map(v => v.theme !== editingThemeName ? v : {
-            ...v,
-            theme: newThemeName,
-            ...(editThemeForm.price_cents ? { price_cents: Number(editThemeForm.price_cents) } : {}),
-            ...(image_url ? { image_url } : {}),
-          }),
-        } : null);
+        const prods = await fetch('/api/products').then(r => r.json()).catch(() => null);
+        if (prods) {
+          const updated = prods.find(p => p.id === editingProduct.id);
+          if (updated) setEditingProduct(updated);
+        }
         setEditingThemeName(null);
         setEditThemeImageFile(null);
         setEditThemeImagePreview(null);
@@ -1427,7 +1431,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                             setEditThemeImagePreview(null);
                           } else {
                             setEditingThemeName(theme);
-                            setEditThemeForm({ theme, price_cents: String(tvs[0]?.price_cents || ''), image_url: img || '' });
+                            setEditThemeForm({ theme, price_cents: String(tvs[0]?.price_cents || ''), image_url: img || '', filament_ids: [...new Set(tvs.map(v => String(v.filament_id)))], _origPrice: tvs[0]?.price_cents || 0 });
                             setEditThemeImageFile(null);
                             setEditThemeImagePreview(null);
                           }
@@ -1445,6 +1449,28 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                               <label>Price (cents)</label>
                               <input type="number" value={editThemeForm.price_cents} onChange={e => setEditThemeForm({ ...editThemeForm, price_cents: e.target.value })} placeholder="1999 = $19.99" />
                             </div>
+                          </div>
+                          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                            <label>Colors in this theme</label>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                              <button type="button" className="btn-sm" onClick={() => setEditThemeForm({ ...editThemeForm, filament_ids: filaments.map(f => String(f.id)) })}>Select All</button>
+                              <button type="button" className="btn-sm" onClick={() => setEditThemeForm({ ...editThemeForm, filament_ids: [] })}>Clear</button>
+                            </div>
+                            <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem' }}>
+                              {filaments.map(f => (
+                                <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', color: 'var(--text)' }}>
+                                  <input type="checkbox" checked={(editThemeForm.filament_ids || []).includes(String(f.id))} onChange={e => {
+                                    const id = String(f.id);
+                                    const cur = editThemeForm.filament_ids || [];
+                                    const next = e.target.checked ? [...cur, id] : cur.filter(x => x !== id);
+                                    setEditThemeForm({ ...editThemeForm, filament_ids: next });
+                                  }} />
+                                  {f.color_hex && <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '3px', background: f.color_hex, border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                                  <span>{f.material} — {f.color}</span>
+                                </label>
+                              ))}
+                            </div>
+                            {(editThemeForm.filament_ids || []).length === 0 && <small className="text-muted">Select at least one color.</small>}
                           </div>
                           <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                             <label>Replace Theme Image (optional)</label>
