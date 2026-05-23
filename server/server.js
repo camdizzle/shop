@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, addProductTheme, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -204,6 +204,16 @@ app.post('/api/products/:id/sizes', auth, (req, res) => {
   const { size, price_cents } = req.body;
   if (!size || price_cents === undefined) return res.status(400).json({ error: 'Size name and price required' });
   const ok = addProductSize(Number(req.params.id), size, Number(price_cents));
+  if (!ok) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+app.post('/api/products/:id/themes', auth, (req, res) => {
+  const { theme, filament_ids = [], price_cents, image_url } = req.body;
+  if (!theme || !Array.isArray(filament_ids) || filament_ids.length === 0 || price_cents === undefined) {
+    return res.status(400).json({ error: 'Theme name, at least one color, and price are required' });
+  }
+  const ok = addProductTheme(Number(req.params.id), { theme, filament_ids, price_cents, image_url });
   if (!ok) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });
 });

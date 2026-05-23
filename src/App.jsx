@@ -537,6 +537,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [editThemeForm, setEditThemeForm] = useState({ theme: '', price_cents: '', image_url: '' });
   const [editThemeImageFile, setEditThemeImageFile] = useState(null);
   const [editThemeImagePreview, setEditThemeImagePreview] = useState(null);
+  const [showAddThemeForm, setShowAddThemeForm] = useState(false);
+  const [addThemeForm, setAddThemeForm] = useState({ theme: '', price_cents: '', filament_ids: [] });
+  const [addThemeImageFile, setAddThemeImageFile] = useState(null);
+  const [addThemeImagePreview, setAddThemeImagePreview] = useState(null);
   const [editingSizeName, setEditingSizeName] = useState(null);
   const [editSizeForm, setEditSizeForm] = useState({ size: '', price_cents: '' });
   const [showAddSizeForm, setShowAddSizeForm] = useState(false);
@@ -701,6 +705,51 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
         onRefresh();
       } else addToast('Failed to update theme', 'error');
     } catch { addToast('Failed to update theme', 'error'); }
+    setUploading(false);
+  };
+
+  const handleAddTheme = async () => {
+    if (!addThemeForm.theme.trim() || addThemeForm.filament_ids.length === 0 || !addThemeForm.price_cents) {
+      addToast('Theme name, at least one color, and price are required', 'warning');
+      return;
+    }
+    setUploading(true);
+    try {
+      let image_url = '';
+      if (addThemeImageFile) {
+        const form = new FormData();
+        form.append('image', addThemeImageFile);
+        const uploadRes = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: form });
+        if (!uploadRes.ok) { addToast('Image upload failed', 'error'); setUploading(false); return; }
+        image_url = (await uploadRes.json()).url;
+      }
+      const res = await fetch(`/api/products/${editingProduct.id}/themes`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: addThemeForm.theme.trim(), filament_ids: addThemeForm.filament_ids, price_cents: Number(addThemeForm.price_cents), image_url: image_url || undefined }),
+      });
+      if (res.ok) {
+        addToast(`Theme "${addThemeForm.theme}" added`);
+        const sizes = [...new Set((editingProduct.variants || []).map(v => v.size))];
+        const finalSizes = sizes.length ? sizes : ['Standard'];
+        const newVariants = [];
+        for (const fid of addThemeForm.filament_ids) {
+          const fil = filaments.find(f => String(f.id) === String(fid));
+          for (const size of finalSizes) {
+            newVariants.push({ id: Date.now() + newVariants.length, product_id: editingProduct.id, filament_id: Number(fid), theme: addThemeForm.theme.trim(), size, style: 'Standard', price_cents: Number(addThemeForm.price_cents), material: fil?.material || 'Unknown', color: fil?.color || 'Unknown', color_hex: fil?.color_hex || null, ...(image_url ? { image_url } : {}) });
+          }
+        }
+        setEditingProduct(prev => prev ? { ...prev, variants: [...prev.variants, ...newVariants] } : null);
+        setShowAddThemeForm(false);
+        setAddThemeForm({ theme: '', price_cents: '', filament_ids: [] });
+        setAddThemeImageFile(null);
+        setAddThemeImagePreview(null);
+        onRefresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        addToast(data.error || 'Failed to add theme', 'error');
+      }
+    } catch { addToast('Failed to add theme', 'error'); }
     setUploading(false);
   };
 
@@ -1285,7 +1334,63 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
             })()}
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '1.25rem' }}>
-              <h4 style={{ color: 'var(--text)', marginBottom: '0.75rem' }}>Manage Themes</h4>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                <h4 style={{ color: 'var(--text)', margin: 0 }}>Manage Themes</h4>
+                <button type="button" className="btn-sm" style={{ width: 'auto', padding: '0.3rem 0.8rem', fontSize: '0.78rem' }} onClick={() => { setShowAddThemeForm(s => !s); setAddThemeForm({ theme: '', price_cents: '', filament_ids: [] }); setAddThemeImageFile(null); setAddThemeImagePreview(null); }}>
+                  {showAddThemeForm ? 'Cancel' : '+ Add Theme'}
+                </button>
+              </div>
+              {showAddThemeForm && (
+                <div style={{ border: '1px solid var(--accent)', borderRadius: '8px', padding: '0.85rem', background: 'var(--surface-1)', marginBottom: '0.85rem' }}>
+                  <div className="form-row" style={{ marginBottom: '0.6rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Theme Name</label>
+                      <input value={addThemeForm.theme} onChange={e => setAddThemeForm({ ...addThemeForm, theme: e.target.value })} placeholder="e.g. NFL, Camo, or Custom" />
+                      <small className="text-muted">Name it <strong>Custom</strong> to let shoppers freely pick any of its colors. Other names show the colors as a fixed set.</small>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label>Price (cents)</label>
+                      <input type="number" value={addThemeForm.price_cents} onChange={e => setAddThemeForm({ ...addThemeForm, price_cents: e.target.value })} placeholder="1999 = $19.99" />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.6rem' }}>
+                    <label>Colors in this theme</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <button type="button" className="btn-sm" onClick={() => setAddThemeForm({ ...addThemeForm, filament_ids: filaments.map(f => String(f.id)) })}>Select All</button>
+                      <button type="button" className="btn-sm" onClick={() => setAddThemeForm({ ...addThemeForm, filament_ids: [] })}>Clear</button>
+                    </div>
+                    <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem' }}>
+                      {filaments.map(f => (
+                        <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', color: 'var(--text)' }}>
+                          <input type="checkbox" checked={addThemeForm.filament_ids.includes(String(f.id))} onChange={e => {
+                            const id = String(f.id);
+                            const next = e.target.checked ? [...addThemeForm.filament_ids, id] : addThemeForm.filament_ids.filter(x => x !== id);
+                            setAddThemeForm({ ...addThemeForm, filament_ids: next });
+                          }} />
+                          {f.color_hex && <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '3px', background: f.color_hex, border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0 }} />}
+                          <span>{f.material} — {f.color}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {addThemeForm.filament_ids.length === 0 && <small className="text-muted">Select at least one color.</small>}
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '0.6rem' }}>
+                    <label>Theme Image (optional)</label>
+                    <input type="file" accept="image/*" onChange={e => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      setAddThemeImageFile(file);
+                      const reader = new FileReader();
+                      reader.onload = ev => setAddThemeImagePreview(ev.target.result);
+                      reader.readAsDataURL(file);
+                    }} />
+                    {addThemeImagePreview && <img src={addThemeImagePreview} alt="Preview" className="image-preview" />}
+                  </div>
+                  <button type="button" className="btn-primary" disabled={uploading} onClick={handleAddTheme} style={{ fontSize: '0.85rem', padding: '0.5rem 1.2rem' }}>
+                    {uploading ? 'Saving...' : 'Add Theme'}
+                  </button>
+                </div>
+              )}
               {(() => {
                 const themes = [...new Set((editingProduct.variants || []).map(v => v.theme))];
                 if (themes.length === 0) return <p className="text-muted">No themes yet.</p>;

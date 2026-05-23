@@ -142,6 +142,29 @@ export function deleteProductTheme(productId, theme) {
   return true;
 }
 
+export function addProductTheme(productId, { theme, filament_ids = [], price_cents, image_url }) {
+  const data = load();
+  const product = data.products.find((p) => p.id === productId);
+  if (!product) return false;
+  const existing = data.variants.filter((v) => v.product_id === productId);
+  const sizes = [...new Set(existing.map((v) => v.size))];
+  if (sizes.length === 0) sizes.push('Standard');
+  const styles = [...new Set(existing.map((v) => v.style || 'Standard'))];
+  if (styles.length === 0) styles.push('Standard');
+  const newVariants = [];
+  for (const filament_id of filament_ids) {
+    for (const size of sizes) {
+      for (const style of styles) {
+        newVariants.push({ id: data.counters.variant++, product_id: productId, filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents), ...(image_url ? { image_url } : {}) });
+      }
+    }
+  }
+  if (newVariants.length === 0) return false;
+  data.variants.push(...newVariants);
+  save(data);
+  return true;
+}
+
 export function updateProductTheme(productId, oldTheme, updates) {
   const data = load();
   let changed = false;
