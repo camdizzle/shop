@@ -151,11 +151,16 @@ export function addProductTheme(productId, { theme, filament_ids = [], price_cen
   if (sizes.length === 0) sizes.push('Standard');
   const styles = [...new Set(existing.map((v) => v.style || 'Standard'))];
   if (styles.length === 0) styles.push('Standard');
+  const sizePrice = {};
+  for (const v of existing) {
+    if (!(v.size in sizePrice)) sizePrice[v.size] = v.price_cents;
+  }
+  const fallback = Number(price_cents) || 0;
   const newVariants = [];
   for (const filament_id of filament_ids) {
     for (const size of sizes) {
       for (const style of styles) {
-        newVariants.push({ id: data.counters.variant++, product_id: productId, filament_id: Number(filament_id), theme, size, style, price_cents: Number(price_cents), ...(image_url ? { image_url } : {}) });
+        newVariants.push({ id: data.counters.variant++, product_id: productId, filament_id: Number(filament_id), theme, size, style, price_cents: sizePrice[size] !== undefined ? sizePrice[size] : fallback, ...(image_url ? { image_url } : {}) });
       }
     }
   }

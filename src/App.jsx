@@ -524,6 +524,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [imagePreview, setImagePreview] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [showFilamentForm, setShowFilamentForm] = useState(false);
+  const [showFilamentList, setShowFilamentList] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingFilamentId, setEditingFilamentId] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -969,18 +970,24 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
 
       <div className="admin-section">
         <div className="admin-section-header">
-          <h3>Filament Library</h3>
+          <h3 style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setShowFilamentList(s => !s)}>
+            Filament Library
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 400, marginLeft: '0.5rem' }}>({filaments.length}) {showFilamentList ? '▲' : '▼'}</span>
+          </h3>
           <button className="btn-primary" onClick={() => {
             if (showFilamentForm) {
               setShowFilamentForm(false);
               setEditingFilamentId(null);
               setFilamentForm({ material: '', color: '', sku: '', stock_grams: '', vendor: '' });
-            } else setShowFilamentForm(true);
+            } else {
+              setShowFilamentForm(true);
+              setShowFilamentList(true);
+            }
           }}>
             {showFilamentForm ? 'Cancel' : '+ Add Filament'}
           </button>
         </div>
-        {showFilamentForm && (
+        {showFilamentList && showFilamentForm && (
           <form className="admin-form" onSubmit={editingFilamentId ? handleEditFilament : handleAddFilament}>
             <div className="form-row">
               <div className="form-group">
@@ -1014,7 +1021,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
             <button type="submit" className="btn-primary">{editingFilamentId ? 'Update Filament' : 'Save Filament'}</button>
           </form>
         )}
-        {filaments.length === 0 ? (
+        {showFilamentList && (filaments.length === 0 ? (
           <p className="text-muted" style={{ padding: '1rem 0' }}>No filaments yet. Add one to get started.</p>
         ) : (
           <div className="admin-table-wrap">
@@ -1038,6 +1045,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                         setEditingFilamentId(f.id);
                         setFilamentForm({ material: f.material, color: f.color, sku: f.sku, stock_grams: String(f.stock_grams), vendor: f.vendor || '', color_hex: f.color_hex || '' });
                         setShowFilamentForm(true);
+                        setShowFilamentList(true);
                       }}>Edit</button>
                       <button className="btn-danger-sm" onClick={() => handleDeleteFilament(f.id)}>Delete</button>
                     </td>
@@ -1046,7 +1054,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
               </tbody>
             </table>
           </div>
-        )}
+        ))}
       </div>
 
       <div className="admin-section">
@@ -1351,6 +1359,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label>Price (cents)</label>
                       <input type="number" value={addThemeForm.price_cents} onChange={e => setAddThemeForm({ ...addThemeForm, price_cents: e.target.value })} placeholder="1999 = $19.99" />
+                      <small className="text-muted">Existing per-size prices take priority; this is the fallback for sizes without one.</small>
                     </div>
                   </div>
                   <div className="form-group" style={{ marginBottom: '0.6rem' }}>
