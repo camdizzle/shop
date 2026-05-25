@@ -535,7 +535,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
   const [chainMakerImageFile, setChainMakerImageFile] = useState(null);
   const [chainMakerImagePreview, setChainMakerImagePreview] = useState(null);
   const [editingThemeName, setEditingThemeName] = useState(null);
-  const [editThemeForm, setEditThemeForm] = useState({ theme: '', price_cents: '', image_url: '' });
+  const [editThemeForm, setEditThemeForm] = useState({ theme: '', price_cents: '', image_url: '', sizes: [] });
   const [editThemeImageFile, setEditThemeImageFile] = useState(null);
   const [editThemeImagePreview, setEditThemeImagePreview] = useState(null);
   const [showAddThemeForm, setShowAddThemeForm] = useState(false);
@@ -694,6 +694,10 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
       addToast('A theme needs at least one color', 'warning');
       return;
     }
+    if (!editThemeForm.sizes || editThemeForm.sizes.length === 0) {
+      addToast('A theme needs at least one size', 'warning');
+      return;
+    }
     setUploading(true);
     try {
       let image_url = editThemeForm.image_url;
@@ -705,11 +709,12 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
         const uploadData = await uploadRes.json();
         image_url = uploadData.url;
       }
-      const body = { theme: editThemeForm.theme, filament_ids: editThemeForm.filament_ids, image_url };
-      // Only override pricing when the price field was actually changed, so per-size prices survive
-      if (editThemeForm.price_cents && Number(editThemeForm.price_cents) !== editThemeForm._origPrice) {
-        body.price_cents = Number(editThemeForm.price_cents);
-      }
+      const body = {
+        theme: editThemeForm.theme,
+        filament_ids: editThemeForm.filament_ids,
+        sizes: editThemeForm.sizes.map(s => ({ size: s.size, price_cents: Number(s.price_cents) || 0 })),
+        image_url,
+      };
       const res = await fetch(`/api/products/${editingProduct.id}/themes/${encodeURIComponent(editingThemeName)}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -1430,6 +1435,7 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
               {(() => {
                 const themes = [...new Set((editingProduct.variants || []).map(v => v.theme))];
                 if (themes.length === 0) return <p className="text-muted">No themes yet.</p>;
+                const allProductSizes = [...new Set((editingProduct.variants || []).map(v => v.size))];
                 return themes.map(theme => {
                   const tvs = (editingProduct.variants || []).filter(v => v.theme === theme);
                   const colors = [...new Set(tvs.map(v => v.color))];
@@ -1454,7 +1460,8 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                             setEditThemeImagePreview(null);
                           } else {
                             setEditingThemeName(theme);
-                            setEditThemeForm({ theme, price_cents: String(tvs[0]?.price_cents || ''), image_url: img || '', filament_ids: [...new Set(tvs.map(v => String(v.filament_id)))], _origPrice: tvs[0]?.price_cents || 0 });
+                            const themeSizes = [...new Set(tvs.map(v => v.size))].map(sz => ({ size: sz, price_cents: String(tvs.find(v => v.size === sz)?.price_cents ?? '') }));
+                            setEditThemeForm({ theme, price_cents: String(tvs[0]?.price_cents || ''), image_url: img || '', filament_ids: [...new Set(tvs.map(v => String(v.filament_id)))], sizes: themeSizes, _origPrice: tvs[0]?.price_cents || 0 });
                             setEditThemeImageFile(null);
                             setEditThemeImagePreview(null);
                           }
@@ -1463,15 +1470,41 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
                       </div>
                       {isEditing && (
                         <div style={{ border: '1px solid var(--accent)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '0.75rem', background: 'var(--surface-1)' }}>
-                          <div className="form-row" style={{ marginBottom: '0.5rem' }}>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label>Theme Name</label>
-                              <input value={editThemeForm.theme} onChange={e => setEditThemeForm({ ...editThemeForm, theme: e.target.value })} placeholder="Theme name" />
+                          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                            <label>Theme Name</label>
+                            <input value={editThemeForm.theme} onChange={e => setEditThemeForm({ ...editThemeForm, theme: e.target.value })} placeholder="Theme name" />
+                          </div>
+                          <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                            <label>{editingProduct.size_label || 'Size'}s &amp; prices for this theme</label>
+                            <small className="text-muted" style={{ display: 'block', marginBottom: '0.4rem' }}>Check the {(editingProduct.size_label || 'size').toLowerCase()}s this theme offers and set each price. To add a brand-new {(editingProduct.size_label || 'size').toLowerCase()} across all themes, use Manage {editingProduct.size_label ? editingProduct.size_label : 'Sizes'} above.</small>
+                            <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem' }}>
+                              {allProductSizes.map(sz => {
+                                const entry = (editThemeForm.sizes || []).find(s => s.size === sz);
+                                const checked = !!entry;
+                                return (
+                                  <div key={sz} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text)', flex: '1 1 120px', margin: 0 }}>
+                                      <input type="checkbox" checked={checked} onChange={e => {
+                                        const cur = editThemeForm.sizes || [];
+                                        if (e.target.checked) {
+                                          const hint = (editingProduct.variants || []).find(v => v.size === sz)?.price_cents;
+                                          setEditThemeForm({ ...editThemeForm, sizes: [...cur, { size: sz, price_cents: String(hint ?? '') }] });
+                                        } else {
+                                          setEditThemeForm({ ...editThemeForm, sizes: cur.filter(s => s.size !== sz) });
+                                        }
+                                      }} />
+                                      <span>{sz}</span>
+                                    </label>
+                                    <input type="number" placeholder="cents" disabled={!checked} value={entry?.price_cents ?? ''} onChange={e => {
+                                      const cur = editThemeForm.sizes || [];
+                                      setEditThemeForm({ ...editThemeForm, sizes: cur.map(s => s.size === sz ? { ...s, price_cents: e.target.value } : s) });
+                                    }} style={{ flex: '0 0 110px', opacity: checked ? 1 : 0.5 }} />
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', flex: '0 0 70px', whiteSpace: 'nowrap' }}>{checked && entry?.price_cents ? `$${(Number(entry.price_cents) / 100).toFixed(2)}` : ''}</span>
+                                  </div>
+                                );
+                              })}
                             </div>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                              <label>Price (cents)</label>
-                              <input type="number" value={editThemeForm.price_cents} onChange={e => setEditThemeForm({ ...editThemeForm, price_cents: e.target.value })} placeholder="1999 = $19.99" />
-                            </div>
+                            {(editThemeForm.sizes || []).length === 0 && <small className="text-muted">Select at least one {(editingProduct.size_label || 'size').toLowerCase()}.</small>}
                           </div>
                           <div className="form-group" style={{ marginBottom: '0.75rem' }}>
                             <label>Colors in this theme</label>

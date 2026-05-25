@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, addProductTheme, setProductThemeColors, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductOrder, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, addProductTheme, setProductThemeColors, setProductThemeSizes, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductOrder, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -226,12 +226,16 @@ app.post('/api/products/:id/themes', auth, (req, res) => {
 });
 
 app.put('/api/products/:id/themes/:theme', auth, async (req, res) => {
-  const { theme: newTheme, price_cents, image_url, filament_ids } = req.body;
+  const { theme: newTheme, price_cents, image_url, filament_ids, sizes } = req.body;
   const id = Number(req.params.id);
   const oldTheme = req.params.theme;
   if (Array.isArray(filament_ids)) {
     if (filament_ids.length === 0) return res.status(400).json({ error: 'A theme needs at least one color' });
     setProductThemeColors(id, oldTheme, filament_ids);
+  }
+  if (Array.isArray(sizes)) {
+    if (sizes.length === 0) return res.status(400).json({ error: 'A theme needs at least one size' });
+    setProductThemeSizes(id, oldTheme, sizes);
   }
   const updates = {
     ...(newTheme ? { theme: newTheme } : {}),

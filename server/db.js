@@ -176,6 +176,42 @@ export function addProductTheme(productId, { theme, filament_ids = [], price_cen
   return true;
 }
 
+export function setProductThemeSizes(productId, theme, sizeEntries) {
+  const data = load();
+  const themeVariants = data.variants.filter((v) => v.product_id === productId && v.theme === theme);
+  if (themeVariants.length === 0) return false;
+  const desired = new Map();
+  for (const e of sizeEntries) {
+    if (e.size === undefined || e.size === null || e.size === '') continue;
+    desired.set(String(e.size), Number(e.price_cents) || 0);
+  }
+  if (desired.size === 0) return false;
+  const filamentIds = [...new Set(themeVariants.map((v) => v.filament_id))];
+  const styles = [...new Set(themeVariants.map((v) => v.style || 'Standard'))];
+  const currentSizes = new Set(themeVariants.map((v) => v.size));
+  const image_url = themeVariants.find((v) => v.image_url)?.image_url;
+  // Remove variants whose size is no longer wanted
+  data.variants = data.variants.filter((v) => !(v.product_id === productId && v.theme === theme && !desired.has(v.size)));
+  // Add variants for newly added sizes
+  for (const [size, price] of desired) {
+    if (currentSizes.has(size)) continue;
+    for (const fid of filamentIds) {
+      for (const style of styles) {
+        data.variants.push({ id: data.counters.variant++, product_id: productId, filament_id: fid, theme, size, style, price_cents: price, ...(image_url ? { image_url } : {}) });
+      }
+    }
+  }
+  // Apply per-size prices to this theme's variants
+  data.variants = data.variants.map((v) => {
+    if (v.product_id === productId && v.theme === theme && desired.has(v.size)) {
+      return { ...v, price_cents: desired.get(v.size) };
+    }
+    return v;
+  });
+  save(data);
+  return true;
+}
+
 export function setProductThemeColors(productId, theme, filament_ids) {
   const data = load();
   const themeVariants = data.variants.filter((v) => v.product_id === productId && v.theme === theme);
