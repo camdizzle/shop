@@ -633,6 +633,24 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
     } catch { addToast('Failed to delete', 'error'); }
   };
 
+  const handleMoveProduct = async (id, direction) => {
+    const idx = products.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= products.length) return;
+    const newOrder = products.map(p => p.id);
+    newOrder.splice(idx, 1);
+    newOrder.splice(swapIdx, 0, id);
+    try {
+      await fetch('/api/products/order', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: newOrder }),
+      });
+      onRefresh();
+    } catch { addToast('Failed to reorder', 'error'); }
+  };
+
   const handleDeleteTheme = async (productId, theme) => {
     try {
       const res = await fetch(`/api/products/${productId}/themes/${encodeURIComponent(theme)}`, { method: 'DELETE', credentials: 'include' });
@@ -1178,13 +1196,18 @@ function AdminPage({ isAdmin, onLogin, onLogout, filaments, products, siteConfig
         ) : (
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Name</th><th>Themes</th><th>Colors</th><th>Price from</th><th></th></tr></thead>
+              <thead><tr><th>Order</th><th>Name</th><th>Themes</th><th>Colors</th><th>Price from</th><th></th></tr></thead>
               <tbody>
-                {products.map(p => {
+                {products.map((p, idx) => {
                   const pThemes = [...new Set((p.variants || []).map(v => v.theme))];
                   const pColors = [...new Set((p.variants || []).map(v => v.color))];
                   return (
                     <tr key={p.id}>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button className="btn-sm" onClick={() => handleMoveProduct(p.id, -1)} disabled={idx === 0} style={{ padding: '0.1rem 0.4rem', minWidth: 0 }}>▲</button>
+                        {' '}
+                        <button className="btn-sm" onClick={() => handleMoveProduct(p.id, 1)} disabled={idx === products.length - 1} style={{ padding: '0.1rem 0.4rem', minWidth: 0 }}>▼</button>
+                      </td>
                       <td>{p.name}</td>
                       <td>{pThemes.join(', ') || '—'}</td>
                       <td>{pColors.length > 3 ? `${pColors.length} colors` : pColors.join(', ') || '—'}</td>

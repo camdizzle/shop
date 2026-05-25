@@ -40,6 +40,11 @@ function migrate(data) {
   if (!data.counters.variant) data.counters.variant = (data.variants.at(-1)?.id || 0) + 1;
   if (!data.site_config) data.site_config = { chain_maker: defaultChainMaker };
   if (!data.site_config.chain_maker) data.site_config.chain_maker = defaultChainMaker;
+  // Assign sort_order to any products missing it (maintain current id-desc display order)
+  if (data.products.some(p => p.sort_order === undefined)) {
+    const sorted = [...data.products].sort((a, b) => b.id - a.id);
+    sorted.forEach((p, i) => { p.sort_order = i; });
+  }
   return data;
 }
 
@@ -99,7 +104,7 @@ export function getProducts() {
     const minPrice = prices.length ? Math.min(...prices) : 0;
     const hasMultiplePrices = new Set(prices).size > 1;
     return { ...p, variants, price_cents: minPrice, has_multiple_prices: hasMultiplePrices, material: variants[0]?.material || 'Unknown', color: variants[0]?.color || 'Unknown' };
-  }).sort((a, b) => b.id - a.id);
+  }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 
 export function createProduct(input) {
@@ -114,7 +119,8 @@ export function createProduct(input) {
     save(data);
     return existing;
   }
-  const product = { id: data.counters.product++, name, description, image_url, slug: slug || name.toLowerCase().replace(/\s+/g, '-') };
+  const maxOrder = data.products.reduce((m, p) => Math.max(m, p.sort_order ?? 0), -1);
+  const product = { id: data.counters.product++, name, description, image_url, slug: slug || name.toLowerCase().replace(/\s+/g, '-'), sort_order: maxOrder + 1 };
   data.products.push(product);
   for (const v of variants) {
     data.variants.push({ id: data.counters.variant++, product_id: product.id, ...v });
@@ -271,4 +277,14 @@ export function updateProduct(id, input) {
   data.products[idx] = { ...data.products[idx], ...update };
   save(data);
   return data.products[idx];
+}
+
+export function updateProductOrder(orderedIds) {
+  const data = load();
+  orderedIds.forEach((id, i) => {
+    const p = data.products.find((p) => p.id === id);
+    if (p) p.sort_order = i;
+  });
+  save(data);
+  return true;
 }

@@ -10,7 +10,7 @@ import Stripe from 'stripe';
 import multer from 'multer';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, addProductTheme, setProductThemeColors, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
+import { createFilament, createProduct, deleteFilament, deleteProduct, deleteProductTheme, deleteProductSize, addProductSize, addProductTheme, setProductThemeColors, getFilaments, getProducts, getSiteConfig, updateFilament, updateProduct, updateProductOrder, updateProductSize, updateProductTheme, updateSiteConfig } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -174,6 +174,13 @@ app.post('/api/products', auth, (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message || 'Unable to create product.' });
   }
+});
+
+app.put('/api/products/order', auth, (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+  updateProductOrder(ids.map(Number));
+  res.json({ ok: true });
 });
 
 app.put('/api/products/:id', auth, async (req, res) => {
